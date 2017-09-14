@@ -1,7 +1,7 @@
-# Poloniex trade history grabber
-# https://github.com/polakowo/polo-collector
+# Grabber of trade history from Poloniex exchange
+# https://github.com/polakowo/plnx-grabber
 #
-#   Copyright (C) 2017  https://github.com/polakowo/polo-collector
+#   Copyright (C) 2017  https://github.com/polakowo/plnx-grabber
 
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-import types
 from collections import defaultdict
 from datetime import timedelta
 from enum import Enum
@@ -171,38 +170,40 @@ def history_info_str(history_info):
         readable_bytes(history_info["memory"]))
 
 
-class PoloCollector(object):
+class Grabber(object):
     """
     Poloniex only returns max of 50,000 records at a time, meaning we have to coordinate download and
     save of many chunks of data. Moreover, there is no fixed amount of records per unit of time, which
-    requires a synchronization of chunks by trade id. For example: If we would like to go one month
-    back at a time, Poloniex could have returned us only the (most recent) half of the records.
-    Because Polo returns only 50,000 of the latest records (not the oldest ones) for a time period,
-    we can collect history only by going backwards. Otherwise, we cannot know which time interval
-    to choose to fill all records in in order to synchronize with previous chunk. That's why we go
-    backwards in time, set only the highest possible time periods, and the last record Poloniex outputs
-    for each chunk will be the anchor for the next one. Finally, we want to store each chunk instantly
-    to the MongoDB.
+    requires a synchronization of chunks by trade id.
+
+    For example: If we would like to go one month back at a time, Poloniex could have returned us only
+    the (most recent) half of the records. Because Polo returns only 50,000 of the latest records (not
+    the oldest ones) for a time period, we can grab history only by going backwards. Otherwise, we
+    cannot know which time interval to choose to fill all records in in order to synchronize with
+    previous chunk. That's why we go backwards in time, set high time intervals, and use the last
+    record Poloniex outputs for each chunk as the anchor for the next one.
     """
 
-    def __init__(self, db):
+    def __init__(self, polo, db):
+        # Get Poloniex API wrapper
+        self.polo = polo
         # Get running MongoDB instance
         self.db = db
-        # Get Poloniex API
-        self.polo = Poloniex()
 
     # Database
     ############################################################
 
     def db_short_info(self):
         # Aggregates basic info on current state of db
-        logger.info("Database - {0} collections - {1:,} documents"
-              .format(len(self.db.collection_names()), sum(self.db[cname].count() for cname in self.db.collection_names())))
+        logger.info("Database '{0}' - {1} collections - {2:,} documents"
+                    .format(self.db.name, len(self.db.collection_names()),
+                            sum(self.db[cname].count() for cname in self.db.collection_names())))
 
     def db_long_info(self):
         # Shows detailed descriptions of each collection
         self.db_short_info()
-        logger.info(''.join(["\n{0} - {1}".format(cname, history_info_str(self.col_history_info(cname))) for cname in self.db.collection_names()]))
+        logger.info(''.join(["\n{0} - {1}".format(cname, history_info_str(self.col_history_info(cname))) for cname in
+                             self.db.collection_names()]))
 
     # Collections
 
@@ -329,12 +330,15 @@ class PoloCollector(object):
         except Exception as e:
             return pd.DataFrame()
 
-    # Collectors
+    # Grabber
     ############################################################
 
-    def collect(self, pair, start_ts, end_ts, start_id=None, end_id=None):
+    def grab(self, pair, start_ts, end_ts, start_id=None, end_id=None):
         """
-        Collects trade history of defined period of time for a pair of symbols
+        Grabs trade history of defined period of time for a pair of symbols.
+
+        * Trade history is divided into chunks.
+        * Each chunk is immediately put into MongoDB once received to free up RAM.
 
         :param pair: pair of symbols
         :param start_ts: timestamp of start point
@@ -472,12 +476,11 @@ class PoloCollector(object):
                 else:
                     raise Exception("%s - Consistency broken - fix required" % pair)
             else:
-                logger.debug("%s - Nothing collected - %.2fs", pair, timer() - t)
+                logger.debug("%s - Nothing returned - %.2fs", pair, timer() - t)
 
-    # Collects history based on passed params and the history in the collection
-    def collector(self, pair, start_ts=None, end_ts=None, drop=False):
+    def one(self, pair, start_ts=None, end_ts=None, drop=False):
         """
-        Collects history based on passed params as well as history stored in the underlying collection
+        Grabs data for a pair based on passed params as well as history stored in the underlying collection
 
         There are 6 supported configurations:
 
@@ -519,29 +522,29 @@ class PoloCollector(object):
             if start_ts is not None:
                 if start_ts < history_info["start"]["ts"]:
                     logger.debug("%s - TAIL", pair)
-                    self.collect(pair,
-                                 start_ts,
-                                 history_info["start"]["ts"],
-                                 end_id=history_info["start"]["_id"])
+                    self.grab(pair,
+                              start_ts,
+                              history_info["start"]["ts"],
+                              end_id=history_info["start"]["_id"])
             # If end timestamp is given, extend the collection forwards in time
             if end_ts is not None:
                 if end_ts > history_info["end"]["ts"]:
                     logger.debug("%s - HEAD", pair)
-                    self.collect(pair,
-                                 history_info["end"]["ts"],
-                                 end_ts,
-                                 start_id=history_info["end"]["_id"])
+                    self.grab(pair,
+                              history_info["end"]["ts"],
+                              end_ts,
+                              start_id=history_info["end"]["_id"])
         else:
-            # If both timestamps are given, collect whole collection
+            # If both timestamps are given, grab whole collection
             if start_ts is not None and end_ts is not None:
                 logger.debug("%s - FULL", pair)
-                self.collect(pair, start_ts, end_ts)
+                self.grab(pair, start_ts, end_ts)
             else:
                 raise Exception("%s - Error - Both, start and end dates must be provided" % pair)
 
-    def collector_row(self, pairs, start_ts=None, end_ts=None, drop=False, db_info=True):
+    def row(self, pairs, start_ts=None, end_ts=None, drop=False, db_info=True):
         """
-        Runs collector for each pair in a row
+        Grabs data for each pair in a row
 
         :param pairs: list of pairs
         :param start_ts: timestamp of the start point
@@ -555,32 +558,32 @@ class PoloCollector(object):
         for i, pair in enumerate(pairs):
             t = timer()
             logger.info("%s - %d/%d", pair, i + 1, len(pairs))
-            self.collector(pair, start_ts=start_ts, end_ts=end_ts, drop=drop)
+            self.one(pair, start_ts=start_ts, end_ts=end_ts, drop=drop)
             logger.info("%s - Finished - %.2fs", pair, timer() - t)
         if db_info:
             self.db_short_info()
 
-    def collector_ring(self, pairs, start_ts=None, every=TimePeriod.MINUTE.value, iterations=None):
+    def ring(self, pairs, start_ts=None, every=TimePeriod.MINUTE.value, iterations=None):
         """
-        Runs a row of collectors every predefined time
+        Grabs the most recent data for a row of pairs on repeat
 
         :param pairs: list of pairs
         :param start_ts: timestamp of the start point
         :param every: timestamp of the end point
-        :param iterations: maximum number of times a collector row is executed
+        :param iterations: maximum number of times a grabber row is executed
         :return: None
         """
         self.db_short_info()
-        logger.info("Collector ring - %d pairs - Every %s", len(pairs), td_format(timedelta(seconds=every)))
+        logger.info("Ring - %d pairs - Every %s", len(pairs), td_format(timedelta(seconds=every)))
         iteration = 1
         while (True):
-            logger.info("Collector ring - Iteration %d", iteration)
+            logger.info("Row - Iteration %d", iteration)
             if start_ts is not None and iteration == 1:
                 # Collect tail only 1 time, to extend the previous collected history
-                self.collector_row(pairs, start_ts=start_ts, end_ts=ts_now(), db_info=False)
+                self.row(pairs, start_ts=start_ts, end_ts=ts_now(), db_info=False)
             else:
                 # Collect head every defined time, as present is dynamic
-                self.collector_row(pairs, end_ts=ts_now(), db_info=False)
+                self.row(pairs, end_ts=ts_now(), db_info=False)
             iteration += 1
             if iterations is not None and iteration > iterations:
                 break
@@ -594,7 +597,7 @@ class PoloCollector(object):
 def create_logger():
     fmter = logging.Formatter(fmt='%(asctime)s - %(funcName)25s() - %(levelname)8s - %(message)s')
     # Create a file handler
-    log_path = "PoloCollector.log"
+    log_path = "Grabber.log"
     file_handler = logging.FileHandler(log_path)
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(fmter)
@@ -613,14 +616,14 @@ def create_logger():
     return logger
 
 
-def get_db():
+def get_db(name):
     client = MongoClient('localhost:27017')
-    db = client["PoloCollector"]
+    db = client[name]
     return db
 
 
 if __name__ == "__main__":
     logger = create_logger()
-    collector = PoloCollector(get_db())
+    grabber = Grabber(Poloniex(), get_db("TradeHistory"))
 
-    collector.collector_ring(["USDT_BTC", "USDT_ETH", "USDT_LTC"], start_ts=ts_ago(TimePeriod.MINUTE.value), iterations=1)
+    grabber.ring(["USDT_BTC", "USDT_ETH", "USDT_LTC"], start_ts=ts_ago(TimePeriod.MINUTE.value), iterations=1)
