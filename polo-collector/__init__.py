@@ -1,3 +1,21 @@
+# Poloniex trade history grabber
+# https://github.com/polakowo/polo-collector
+#
+#   Copyright (C) 2017  https://github.com/polakowo/polo-collector
+
+#   This program is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 import logging
 import types
 from collections import defaultdict
@@ -12,9 +30,8 @@ from poloniex import Poloniex
 from pymongo import MongoClient
 
 
-###########################
-####### Date & time #######
-###########################
+# Date & time
+############################################################
 
 def parse_date(date_str, fmt="YYYY-MM-DD HH:mm:ss"):
     # Parse dates coming from Poloniex
@@ -81,11 +98,8 @@ class TimePeriod(Enum):
     YEAR = 217728000
 
 
-##########################
-####### Dataframes #######
-##########################
-
-# Dataframe
+# Dataframes
+############################################################
 
 def df_memory(df):
     return df.memory_usage(index=True).sum()
@@ -136,10 +150,6 @@ def verify_history_df(df):
     return diff == 0
 
 
-##########################
-####### Formatting #######
-##########################
-
 def readable_bytes(num):
     """
     Read only first and latest records (cheap)
@@ -181,9 +191,8 @@ class PoloCollector(object):
         # Get Poloniex API
         self.polo = Poloniex()
 
-    ########################
-    ####### Database #######
-    ########################
+    # Database
+    ############################################################
 
     # Collections
 
@@ -279,9 +288,8 @@ class PoloCollector(object):
         # Return documents which match query
         return self.db[cname].find(query)
 
-    ########################
-    ####### Poloniex #######
-    ########################
+    # Poloniex
+    ############################################################
 
     def return_symbols(self):
         ticker = self.polo.returnTicker()
@@ -311,9 +319,8 @@ class PoloCollector(object):
         except Exception as e:
             return pd.DataFrame()
 
-    ##########################
-    ####### Collectors #######
-    ##########################
+    # Collectors
+    ############################################################
 
     def collect(self, pair, start_ts, end_ts, start_id=None, end_id=None, max_window_size=TimePeriod.DAY.value):
         """
@@ -512,7 +519,6 @@ class PoloCollector(object):
         """
         for i, pair in enumerate(pairs):
             t = timer()
-            logger.newline()
             logger.info("%s - %d/%d", pair, i + 1, len(pairs))
             self.collector(pair, start_ts=start_ts, end_ts=end_ts, drop=drop, max_window_size=max_window_size)
             logger.info("%s - Finished - %.2fs", pair, timer() - t)
@@ -527,11 +533,9 @@ class PoloCollector(object):
         :param iterations: maximum number of times a collector row is executed
         :return: None
         """
-        logger.newline(2)
         logger.info("Collector ring - %d pairs - Every %s", len(pairs), td_format(timedelta(seconds=every)))
         iteration = 1
         while (True):
-            logger.newline()
             logger.info("Collector ring - Iteration %d", iteration)
             if start_ts is not None and iteration == 1:
                 # Collect tail only 1 time, as past is static
@@ -546,34 +550,17 @@ class PoloCollector(object):
 
 
 # Logger
-
-def log_newline(self, how_many_lines=1):
-    # Switch handler, output a blank line
-    self.removeHandler(self.file_handler)
-    self.removeHandler(self.console_handler)
-    self.addHandler(self.blank_handler)
-    for i in range(how_many_lines):
-        self.info('')
-
-    # Switch back
-    self.removeHandler(self.blank_handler)
-    self.addHandler(self.file_handler)
-    self.addHandler(self.console_handler)
-
+############################################################
 
 def create_logger():
     fmter = logging.Formatter(fmt='%(asctime)s - %(funcName)25s() - %(levelname)8s - %(message)s')
-    # Create a handler
+    # Create a file handler
     log_path = "PoloCollector.log"
     file_handler = logging.FileHandler(log_path)
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(fmter)
 
-    # Create a "blank line" handler
-    blank_handler = logging.FileHandler(log_path)
-    blank_handler.setLevel(logging.DEBUG)
-    blank_handler.setFormatter(logging.Formatter(fmt=''))
-
+    # Create a console handler
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(fmter)
@@ -584,16 +571,8 @@ def create_logger():
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
 
-    # Save some data and add a method to logger object
-    logger.file_handler = file_handler
-    logger.blank_handler = blank_handler
-    logger.console_handler = console_handler
-    logger.newline = types.MethodType(log_newline, logger)
-
     return logger
 
-
-# Database
 
 def get_db():
     client = MongoClient('localhost:27017')
