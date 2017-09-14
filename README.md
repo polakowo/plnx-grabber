@@ -1,2 +1,2 @@
-# polo-collector
-Collector of trade history from Poloniex exchange
+# plnx-grabber
+Grabber of trade history from Poloniex exchange
