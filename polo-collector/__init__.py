@@ -194,6 +194,16 @@ class PoloCollector(object):
     # Database
     ############################################################
 
+    def db_short_info(self):
+        # Aggregates basic info on current state of db
+        logger.info("Database - {0} collections - {1:,} documents"
+              .format(len(self.db.collection_names()), sum(self.db[cname].count() for cname in self.db.collection_names())))
+
+    def db_long_info(self):
+        # Shows detailed descriptions of each collection
+        self.db_short_info()
+        logger.info(''.join(["\n{0} - {1}".format(cname, history_info_str(self.col_history_info(cname))) for cname in self.db.collection_names()]))
+
     # Collections
 
     def drop_col(self, cname):
@@ -322,7 +332,7 @@ class PoloCollector(object):
     # Collectors
     ############################################################
 
-    def collect(self, pair, start_ts, end_ts, start_id=None, end_id=None, max_window_size=TimePeriod.DAY.value):
+    def collect(self, pair, start_ts, end_ts, start_id=None, end_id=None):
         """
         Collects trade history of defined period of time for a pair of symbols
 
@@ -363,7 +373,7 @@ class PoloCollector(object):
             logger.debug("%s - Start date { %s } already reached", pair, ts_to_str(period["start"]["ts"]))
             return
         else:
-
+            max_window_size = TimePeriod.DAY.value
             window = {}
             # Initially, window end is the period's end
             window["end"] = period["end"]
@@ -465,48 +475,71 @@ class PoloCollector(object):
                 logger.debug("%s - Nothing collected - %.2fs", pair, timer() - t)
 
     # Collects history based on passed params and the history in the collection
-    def collector(self, pair, start_ts=None, end_ts=None, drop=False, max_window_size=TimePeriod.DAY.value):
+    def collector(self, pair, start_ts=None, end_ts=None, drop=False):
         """
         Collects history based on passed params as well as history stored in the underlying collection
+
+        There are 6 supported configurations:
+
+            History not provided:
+
+            1) Full dataset is fetched
+                start_ts ____________________FULL_____________________ end_ts
+
+            History provided:
+
+            1) Both, tail and head datasets are fetched
+                start_ts _____TAIL_____ [ xxxxxxxxxxx ] _____HEAD_____ end_ts
+
+            2) start_ts=None: Only head dataset is fetched
+                [ xxxxxxxxxxx ] _________________HEAD_________________ end_ts
+
+            3) end_ts=None: Only tail dataset is fetched
+                start_ts ________________TAIL________________ [ xxxxxxxxxxx ]
+
+            4) To avoid gaps, start point is forced to the left and then head is fetched
+                [ xxxxxxxxxxx ] ____________<- start_ts _____HEAD_____ end_ts
+
+            5) To avoid gaps, end point is forced to the right and then tail is fetched
+                start_ts _____TAIL_____ end_ts ->____________ [ xxxxxxxxxxx ]
+
 
         :param pair: pair of symbols
         :param start_ts: timestamp of the start point
         :param end_ts: timestamp of the end point
         :param drop: delete underlying collection before insert
-        :param max_window_size: maximum length of rolling window in seconds
         :return: None
         """
         if self.col_non_empty(pair) and drop:
             self.drop_col(pair)
         if self.col_non_empty(pair):
             history_info = self.col_history_info(pair)
-            # If only start timestamp is given, extend the collection backwards in time
+
+            # If start timestamp is given, extend the collection backwards in time
             if start_ts is not None:
                 if start_ts < history_info["start"]["ts"]:
                     logger.debug("%s - TAIL", pair)
                     self.collect(pair,
                                  start_ts,
                                  history_info["start"]["ts"],
-                                 end_id=history_info["start"]["_id"],
-                                 max_window_size=max_window_size)
-            # If only end timestamp is given, extend the collection forwards in time
+                                 end_id=history_info["start"]["_id"])
+            # If end timestamp is given, extend the collection forwards in time
             if end_ts is not None:
                 if end_ts > history_info["end"]["ts"]:
                     logger.debug("%s - HEAD", pair)
                     self.collect(pair,
                                  history_info["end"]["ts"],
                                  end_ts,
-                                 start_id=history_info["end"]["_id"],
-                                 max_window_size=max_window_size)
+                                 start_id=history_info["end"]["_id"])
         else:
             # If both timestamps are given, collect whole collection
             if start_ts is not None and end_ts is not None:
                 logger.debug("%s - FULL", pair)
-                self.collect(pair, start_ts, end_ts, max_window_size=max_window_size)
+                self.collect(pair, start_ts, end_ts)
             else:
                 raise Exception("%s - Error - Both, start and end dates must be provided" % pair)
 
-    def collector_row(self, pairs, start_ts=None, end_ts=None, drop=False, max_window_size=TimePeriod.DAY.value):
+    def collector_row(self, pairs, start_ts=None, end_ts=None, drop=False, db_info=True):
         """
         Runs collector for each pair in a row
 
@@ -514,14 +547,18 @@ class PoloCollector(object):
         :param start_ts: timestamp of the start point
         :param end_ts: timestamp of the end point
         :param drop: delete underlying collection before insert
-        :param max_window_size: maximum length of rolling window in seconds
+        :param db_info: show short information on current db status
         :return: None
         """
+        if db_info:
+            self.db_short_info()
         for i, pair in enumerate(pairs):
             t = timer()
             logger.info("%s - %d/%d", pair, i + 1, len(pairs))
-            self.collector(pair, start_ts=start_ts, end_ts=end_ts, drop=drop, max_window_size=max_window_size)
+            self.collector(pair, start_ts=start_ts, end_ts=end_ts, drop=drop)
             logger.info("%s - Finished - %.2fs", pair, timer() - t)
+        if db_info:
+            self.db_short_info()
 
     def collector_ring(self, pairs, start_ts=None, every=TimePeriod.MINUTE.value, iterations=None):
         """
@@ -533,20 +570,22 @@ class PoloCollector(object):
         :param iterations: maximum number of times a collector row is executed
         :return: None
         """
+        self.db_short_info()
         logger.info("Collector ring - %d pairs - Every %s", len(pairs), td_format(timedelta(seconds=every)))
         iteration = 1
         while (True):
             logger.info("Collector ring - Iteration %d", iteration)
             if start_ts is not None and iteration == 1:
-                # Collect tail only 1 time, as past is static
-                self.collector_row(pairs, start_ts=start_ts, end_ts=end_ts)
+                # Collect tail only 1 time, to extend the previous collected history
+                self.collector_row(pairs, start_ts=start_ts, end_ts=ts_now(), db_info=False)
             else:
                 # Collect head every defined time, as present is dynamic
-                self.collector_row(pairs, end_ts=ts_now())
+                self.collector_row(pairs, end_ts=ts_now(), db_info=False)
             iteration += 1
             if iterations is not None and iteration > iterations:
-                return
+                break
             sleep(every)
+        self.db_long_info()
 
 
 # Logger
@@ -584,4 +623,4 @@ if __name__ == "__main__":
     logger = create_logger()
     collector = PoloCollector(get_db())
 
-    collector.collector("USDT_BTC", start_ts=ts_ago(TimePeriod.MINUTE.value), end_ts=ts_now(), drop=True)
+    collector.collector_ring(["USDT_BTC", "USDT_ETH", "USDT_LTC"], start_ts=ts_ago(TimePeriod.MINUTE.value), iterations=1)
