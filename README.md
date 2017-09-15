@@ -13,12 +13,12 @@ grabber.one('USDT_BTC',
             drop=True)
 ```
 
-#### Multiple pairs, single action
-
 Considering we have history stored in db, just keep it up-to-date:
 ```python
 grabber.one('USDT_BTC', end_ts=plnxgrabber.ts_now())
 ```
+
+#### Multiple pairs, single action
 
 For a row of pairs, drop previous history and collect the last 5 minutes:
 ```python
