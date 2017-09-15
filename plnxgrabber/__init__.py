@@ -25,24 +25,28 @@ from timeit import default_timer as timer
 
 import arrow
 import pandas as pd
-from poloniex import Poloniex
-from pymongo import MongoClient
 
+# Logger
+############################################################
+
+logger = logging.getLogger(__name__)
+# No logging by default
+logger.addHandler(logging.NullHandler())
 
 # Date & time
 ############################################################
 
-def parse_date(date_str, fmt="YYYY-MM-DD HH:mm:ss"):
+def parse_date(date_str, fmt='YYYY-MM-DD HH:mm:ss'):
     # Parse dates coming from Poloniex
     return arrow.get(date_str, fmt)
 
 
-def date_to_str(date, fmt="ddd DD. MMM YYYY HH:mm:ss ZZ"):
+def date_to_str(date, fmt='ddd DD/MM/YYYY HH:mm:ss ZZ'):
     # Format date for showing in console and logs
     return date.format(fmt)
 
 
-def ts_to_str(ts, fmt="ddd DD. MMM YYYY HH:mm:ss ZZ"):
+def ts_to_str(ts, fmt='ddd DD/MM/YYYY HH:mm:ss ZZ'):
     return arrow.get(ts).format(fmt)
 
 
@@ -80,11 +84,11 @@ def td_format(td_object):
         if seconds >= period_seconds:
             period_value, seconds = divmod(seconds, period_seconds)
             if period_value == 1:
-                strings.append("%s %s" % (period_value, period_name))
+                strings.append('%s %s' % (period_value, period_name))
             else:
-                strings.append("%s %ss" % (period_value, period_name))
+                strings.append('%s %ss' % (period_value, period_name))
 
-    return " ".join(strings)
+    return ' '.join(strings)
 
 
 class TimePeriod(Enum):
@@ -122,24 +126,24 @@ def df_history_info(df):
     old_id, old_ts = df.index[old_i]
     new_id, new_ts = df.index[new_i]
     return {
-        "start": {
-            "ts": old_ts,
-            "_id": old_id
+        'start': {
+            'ts': old_ts,
+            '_id': old_id
         },
-        "end": {
-            "ts": new_ts,
-            "_id": new_id
+        'end': {
+            'ts': new_ts,
+            '_id': new_id
         },
-        "delta": ts_delta(old_ts, new_ts),
-        "count": len(df.index),
-        "memory": df_memory(df)}
+        'delta': ts_delta(old_ts, new_ts),
+        'count': len(df.index),
+        'memory': df_memory(df)}
 
 
 def verify_history_df(df):
     # Verifies the incremental nature of trade id across history
     t = timer()
     history_info = df_history_info(df)
-    diff = history_info["count"] - (history_info["end"]["_id"] - history_info["start"]["_id"] + 1)
+    diff = history_info['count'] - (history_info['end']['_id'] - history_info['start']['_id'] + 1)
     if diff > 0:
         logger.warning("Dataframe - Found duplicates (%d) - %.2fs", diff, timer() - t)
     elif diff < 0:
@@ -157,17 +161,17 @@ def readable_bytes(num):
     """
     for x in ['B', 'KB', 'MB', 'GB', 'TB']:
         if num < 1024.0:
-            return "%3.1f %s" % (num, x)
+            return '%3.1f %s' % (num, x)
         num /= 1024.0
 
 
 def history_info_str(history_info):
     return "{ %s, %s, %s, %d rows, %s }" % (
-        ts_to_str(history_info["start"]["ts"]),
-        ts_to_str(history_info["end"]["ts"]),
-        td_format(history_info["delta"]),
-        history_info["count"],
-        readable_bytes(history_info["memory"]))
+        ts_to_str(history_info['start']['ts']),
+        ts_to_str(history_info['end']['ts']),
+        td_format(history_info['delta']),
+        history_info['count'],
+        readable_bytes(history_info['memory']))
 
 
 class Grabber(object):
@@ -185,9 +189,9 @@ class Grabber(object):
     """
 
     def __init__(self, polo, db):
-        # Get Poloniex API wrapper
+        # Set Poloniex API wrapper
         self.polo = polo
-        # Get running MongoDB instance
+        # Set running MongoDB instance
         self.db = db
 
     # Database
@@ -218,12 +222,12 @@ class Grabber(object):
 
     def col_memory(self, cname):
         # Returns size of all documents + header + index size
-        return self.db.command("collstats", cname)["size"] + 16 * 100 + self.db.command("collstats", cname)[
-            "totalIndexSize"]
+        return self.db.command('collstats', cname)['size'] + 16 * 100 + self.db.command('collstats', cname)[
+            'totalIndexSize']
 
     def col_count(self, cname):
         # Documents count in collection
-        return self.db.command("collstats", cname)["count"]
+        return self.db.command('collstats', cname)['count']
 
     def col_history_info(self, cname):
         # Returns the most important history information
@@ -231,23 +235,23 @@ class Grabber(object):
         start_dict = self.start_doc(cname)
         end_dict = self.end_doc(cname)
         return {
-            "start": {
-                "ts": start_dict["ts"],
-                "_id": start_dict["_id"]
+            'start': {
+                'ts': start_dict['ts'],
+                '_id': start_dict['_id']
             },
-            "end": {
-                "ts": end_dict["ts"],
-                "_id": end_dict["_id"]
+            'end': {
+                'ts': end_dict['ts'],
+                '_id': end_dict['_id']
             },
-            "delta": ts_delta(start_dict["ts"], end_dict["ts"]),
-            "count": self.col_count(cname),
-            "memory": self.col_memory(cname)}
+            'delta': ts_delta(start_dict['ts'], end_dict['ts']),
+            'count': self.col_count(cname),
+            'memory': self.col_memory(cname)}
 
     def verify_history_col(self, cname):
         # Verifies the incremental nature of trade id across history
         t = timer()
         history_info = self.col_history_info(cname)
-        diff = history_info["count"] - (history_info["end"]["_id"] - history_info["start"]["_id"] + 1)
+        diff = history_info['count'] - (history_info['end']['_id'] - history_info['start']['_id'] + 1)
         if diff > 0:
             logger.warning("Collection - Found duplicates (%d) - %.2fs", diff, timer() - t)
         elif diff < 0:
@@ -279,8 +283,8 @@ class Grabber(object):
         n_upserted = 0
         for record in df_to_dict(df):
             result = self.db[cname].update_one(
-                {"_id": record["_id"]},
-                {"$setOnInsert": record},
+                {'_id': record['_id']},
+                {'$setOnInsert': record},
                 upsert=True)
             if result.modified_count is not None and result.modified_count > 0:
                 n_modified += result.modified_count
@@ -307,7 +311,7 @@ class Grabber(object):
         pairs = set(map(lambda x: str(x).upper(), ticker.keys()))
         pairs_grouped = defaultdict(list)
         for pair in pairs:
-            pairs_grouped[pair.split("_")[0]].append(pair.split("_")[1])
+            pairs_grouped[pair.split('_')[0]].append(pair.split('_')[1])
         return pairs_grouped
 
     def return_trade_history(self, pair, start, end):
@@ -322,10 +326,10 @@ class Grabber(object):
                 'total': float,
                 'tradeID': int,
                 'type': str})
-            history_df["date"] = history_df["date"].apply(lambda date_str: ts_from_date(parse_date(date_str))).astype(
+            history_df['date'] = history_df['date'].apply(lambda date_str: ts_from_date(parse_date(date_str))).astype(
                 int)
-            history_df.rename(columns={"date": "ts", "tradeID": "_id", "globalTradeID": "globalid"}, inplace=True)
-            history_df = history_df.set_index(["_id", "ts"], drop=True)
+            history_df.rename(columns={'date': 'ts', 'tradeID': '_id', 'globalTradeID': 'globalid'}, inplace=True)
+            history_df = history_df.set_index(['_id', 'ts'], drop=True)
             return history_df
         except Exception as e:
             return pd.DataFrame()
@@ -355,54 +359,54 @@ class Grabber(object):
         logger.debug("%s - Collection - Achieving { %s%s, %s%s, %s }",
                      pair,
                      ts_to_str(start_ts),
-                     " (%d)" % start_id if start_id is not None else '',
+                     ' (%d)' % start_id if start_id is not None else '',
                      ts_to_str(end_ts),
-                     " (%d)" % end_id if end_id is not None else '',
+                     ' (%d)' % end_id if end_id is not None else '',
                      td_format(ts_delta(start_ts, end_ts)))
 
         t = timer()
         # Dates are required to build rolling windows and pass them to Poloniex.
         # Ids are optional, and are used to accurately synchronize chunks of history.
         period = {
-            "start": {
-                "ts": start_ts,
-                "_id": start_id
+            'start': {
+                'ts': start_ts,
+                '_id': start_id
             },
-            "end": {
-                "ts": end_ts,
-                "_id": end_id
+            'end': {
+                'ts': end_ts,
+                '_id': end_id
             }
         }
-        if period["end"]["ts"] <= period["start"]["ts"]:
-            logger.debug("%s - Start date { %s } already reached", pair, ts_to_str(period["start"]["ts"]))
+        if period['end']['ts'] <= period['start']['ts']:
+            logger.debug("%s - Start date { %s } already reached", pair, ts_to_str(period['start']['ts']))
             return
         else:
             max_window_size = TimePeriod.DAY.value
             window = {}
             # Initially, window end is the period's end
-            window["end"] = period["end"]
+            window['end'] = period['end']
             # After we inserted records, verify collection
             something_inserted = False
 
             # Two possibilities to escape the loop: 1) empty result or 2) reached the GOAL
             while (True):
                 # If period's window is huge, choose max window size, else period's size
-                if window["end"]["ts"] - period["start"]["ts"] > max_window_size:
-                    window["start"] = {
-                        "ts": window["end"]["ts"] - max_window_size,
-                        "_id": None
+                if window['end']['ts'] - period['start']['ts'] > max_window_size:
+                    window['start'] = {
+                        'ts': window['end']['ts'] - max_window_size,
+                        '_id': None
                     }
                 else:
-                    window["start"] = period["start"]
+                    window['start'] = period['start']
 
                 # In case of error, empty df is returned
                 t2 = timer()
                 logger.debug("%s - Poloniex - Querying { %s, %s, %s }",
                              pair,
-                             ts_to_str(window["start"]["ts"]),
-                             ts_to_str(window["end"]["ts"]),
-                             td_format(ts_delta(window["start"]["ts"], window["end"]["ts"])))
-                df = self.return_trade_history(pair, window["start"]["ts"], window["end"]["ts"])
+                             ts_to_str(window['start']['ts']),
+                             ts_to_str(window['end']['ts']),
+                             td_format(ts_delta(window['start']['ts'], window['end']['ts'])))
+                df = self.return_trade_history(pair, window['start']['ts'], window['end']['ts'])
                 if df.empty:
                     logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
                     break
@@ -418,21 +422,21 @@ class Grabber(object):
                     logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
                     break
                 # Applies only if we have a dataset with newer history to merge with
-                if window["end"]["_id"] is not None:
+                if window['end']['_id'] is not None:
                     # To merge two dataframes, there must be an intersection of ids (anchor)
-                    if any(index_by_name(df, "_id") >= window["end"]["_id"]):
-                        df = df[index_by_name(df, "_id") < window["end"]["_id"]]
+                    if any(index_by_name(df, '_id') >= window['end']['_id']):
+                        df = df[index_by_name(df, '_id') < window['end']['_id']]
                         if df.empty:
                             logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
                             break
                     else:
                         logger.debug("%s - Poloniex - The anchor id { %d } is missing - aborting", pair,
-                                     window["end"]["_id"])
+                                     window['end']['_id'])
                         break
                 # Applies only if we have a dataset with older history to merge with
-                if window["start"]["_id"] is not None:
-                    if any(index_by_name(df, "_id") <= window["start"]["_id"]):
-                        df = df[index_by_name(df, "_id") > window["start"]["_id"]]
+                if window['start']['_id'] is not None:
+                    if any(index_by_name(df, '_id') <= window['start']['_id']):
+                        df = df[index_by_name(df, '_id') > window['start']['_id']]
                         if df.empty:
                             logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
                         else:
@@ -443,8 +447,8 @@ class Grabber(object):
                                 something_inserted = True
                         break  # escape anyway
 
-                elif any(index_by_name(df, 'ts') <= period["start"]["ts"]):
-                    df = df[index_by_name(df, 'ts') >= period["start"]["ts"]]
+                elif any(index_by_name(df, 'ts') <= period['start']['ts']):
+                    df = df[index_by_name(df, 'ts') >= period['start']['ts']]
                     if df.empty:
                         logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
                     else:
@@ -464,9 +468,9 @@ class Grabber(object):
                 self.insert_docs(pair, df)
                 something_inserted = True
                 history_info = self.col_history_info(pair)
-                window["end"] = {
-                    "ts": history_info["start"]["ts"],
-                    "_id": history_info["start"]["_id"]
+                window['end'] = {
+                    'ts': history_info['start']['ts'],
+                    '_id': history_info['start']['_id']
                 }
 
             if something_inserted:
@@ -520,20 +524,20 @@ class Grabber(object):
 
             # If start timestamp is given, extend the collection backwards in time
             if start_ts is not None:
-                if start_ts < history_info["start"]["ts"]:
+                if start_ts < history_info['start']['ts']:
                     logger.debug("%s - TAIL", pair)
                     self.grab(pair,
                               start_ts,
-                              history_info["start"]["ts"],
-                              end_id=history_info["start"]["_id"])
+                              history_info['start']['ts'],
+                              end_id=history_info['start']['_id'])
             # If end timestamp is given, extend the collection forwards in time
             if end_ts is not None:
-                if end_ts > history_info["end"]["ts"]:
+                if end_ts > history_info['end']['ts']:
                     logger.debug("%s - HEAD", pair)
                     self.grab(pair,
-                              history_info["end"]["ts"],
+                              history_info['end']['ts'],
                               end_ts,
-                              start_id=history_info["end"]["_id"])
+                              start_id=history_info['end']['_id'])
         else:
             # If both timestamps are given, grab whole collection
             if start_ts is not None and end_ts is not None:
@@ -589,41 +593,3 @@ class Grabber(object):
                 break
             sleep(every)
         self.db_long_info()
-
-
-# Logger
-############################################################
-
-def create_logger():
-    fmter = logging.Formatter(fmt='%(asctime)s - %(funcName)25s() - %(levelname)8s - %(message)s')
-    # Create a file handler
-    log_path = "Grabber.log"
-    file_handler = logging.FileHandler(log_path)
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(fmter)
-
-    # Create a console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(fmter)
-
-    # Create a logger, with the previously-defined handler
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
-    return logger
-
-
-def get_db(name):
-    client = MongoClient('localhost:27017')
-    db = client[name]
-    return db
-
-
-if __name__ == "__main__":
-    logger = create_logger()
-    grabber = Grabber(Poloniex(), get_db("TradeHistory"))
-
-    grabber.ring(["USDT_BTC", "USDT_ETH", "USDT_LTC"], start_ts=ts_ago(TimePeriod.MINUTE.value), iterations=1)
