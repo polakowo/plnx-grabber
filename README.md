@@ -13,7 +13,7 @@ grabber.one('USDT_BTC',
             drop=True)
 ```
 
-Considering we have history stored in db, just keep it up-to-date:
+Considering we have history stored in db, extend it by newest records once:
 ```python
 grabber.one('USDT_BTC', end_ts=plnxgrabber.ts_now())
 ```
