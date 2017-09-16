@@ -1,5 +1,5 @@
 # plnx-grabber
-Grabber of trade history from Poloniex exchange
+Grabs trade history from Poloniex exchange and chunk-wise inserts into MongoDB
 
 ### Installation
 
