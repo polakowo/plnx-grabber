@@ -51,11 +51,11 @@ def ts_to_str(ts, fmt='ddd DD/MM/YYYY HH:mm:ss ZZ'):
     return arrow.get(ts).format(fmt)
 
 
-def ts_now():
+def now_ts():
     return arrow.utcnow().timestamp
 
 
-def ts_ago(seconds):
+def ago_ts(seconds):
     return arrow.utcnow().shift(seconds=-seconds).timestamp
 
 
@@ -94,12 +94,12 @@ def td_format(td_object):
 
 class TimePeriod(Enum):
     SECOND = 1
-    MINUTE = 60
-    HOUR = 3600
-    DAY = 86400
-    WEEK = 604800
-    MONTH = 18144000
-    YEAR = 217728000
+    MINUTE = 60*SECOND
+    HOUR = 60*MINUTE
+    DAY = 24*HOUR
+    WEEK = 7*DAY
+    MONTH = 30*DAY
+    YEAR = 12*MONTH
 
 
 # Dataframes
@@ -122,20 +122,16 @@ def df_to_dict(df):
 def df_history_info(df):
     # Returns the most valuable information on history stored in df.
     # Get the order by comparing the first and last records.
-    old_i = -1 * (df.index[0][0] > df.index[-1][0])
-    new_i = -1 * (df.index[0][0] < df.index[-1][0])
-    old_id, old_ts = df.index[old_i]
-    new_id, new_ts = df.index[new_i]
+    start_i = -1 * (df.index[0][0] > df.index[-1][0])
+    end_i = -1 * (df.index[0][0] < df.index[-1][0])
+    start_id, start_ts = df.index[start_i]
+    end_id, end_ts = df.index[end_i]
     return {
-        'start': {
-            'ts': old_ts,
-            '_id': old_id
-        },
-        'end': {
-            'ts': new_ts,
-            '_id': new_id
-        },
-        'delta': ts_delta(old_ts, new_ts),
+        'start_ts': start_ts,
+        'start_id': start_id,
+        'end_ts': end_ts,
+        'end_id': end_id,
+        'delta': ts_delta(start_ts, end_ts),
         'count': len(df.index),
         'memory': df_memory(df)}
 
@@ -144,11 +140,11 @@ def verify_history_df(df):
     # Verifies the incremental nature of trade id across history
     t = timer()
     history_info = df_history_info(df)
-    diff = history_info['count'] - (history_info['end']['_id'] - history_info['start']['_id'] + 1)
+    diff = history_info['count'] - (history_info['end_id'] - history_info['start_id'] + 1)
     if diff > 0:
         logger.warning("Dataframe - Found duplicates (%d) - %.2fs", diff, timer() - t)
     elif diff < 0:
-        logger.warning("Dataframe - Found gaps (%d) - %.2fs", diff, timer() - t)
+        logger.warning("Dataframe - Found gaps (%d) - %.2fs", abs(diff), timer() - t)
     else:
         logger.debug("Dataframe - Verified - %.2fs", timer() - t)
     return diff == 0
@@ -167,9 +163,11 @@ def readable_bytes(num):
 
 
 def history_info_str(history_info):
-    return "{ %s, %s, %s, %d rows, %s }" % (
-        ts_to_str(history_info['start']['ts']),
-        ts_to_str(history_info['end']['ts']),
+    return "{ %s : %d, %s : %d, %s, %d rows, %s }" % (
+        ts_to_str(history_info['start_ts']),
+        history_info['start_id'],
+        ts_to_str(history_info['end_ts']),
+        history_info['end_id'],
         td_format(history_info['delta']),
         history_info['count'],
         readable_bytes(history_info['memory']))
@@ -184,9 +182,9 @@ class Grabber(object):
     For example: If we would like to go one month back at a time, Poloniex could have returned us only
     the (most recent) half of the records. Because Polo returns only 50,000 of the latest records (not
     the oldest ones) for a time period, we can grab history only by going backwards. Otherwise, we
-    cannot know which time interval to choose to fill all records in in order to synchronize with
-    previous chunk. That's why we go backwards in time, set high time intervals, and use the last
-    record Poloniex outputs for each chunk as the anchor for the next one.
+    cannot know which time interval to choose to fill all records in order to synchronize with
+    previous chunk. That's why we go backwards in time, set highest time intervals, and use the oldest
+    record Poloniex outputs for each chunk as an anchor for the next one.
     """
 
     def __init__(self, polo, db):
@@ -235,27 +233,24 @@ class Grabber(object):
         start_dict = self.start_doc(cname)
         end_dict = self.end_doc(cname)
         return {
-            'start': {
-                'ts': start_dict['ts'],
-                '_id': start_dict['_id']
-            },
-            'end': {
-                'ts': end_dict['ts'],
-                '_id': end_dict['_id']
-            },
+            'start_ts': start_dict['ts'],
+            'start_id': start_dict['_id'],
+            'end_ts': end_dict['ts'],
+            'end_id': end_dict['_id'],
             'delta': ts_delta(start_dict['ts'], end_dict['ts']),
             'count': self.col_count(cname),
             'memory': self.col_memory(cname)}
+
 
     def verify_history_col(self, cname):
         # Verifies the incremental nature of trade id across history
         t = timer()
         history_info = self.col_history_info(cname)
-        diff = history_info['count'] - (history_info['end']['_id'] - history_info['start']['_id'] + 1)
+        diff = history_info['count'] - (history_info['end_id'] - history_info['start_id'] + 1)
         if diff > 0:
             logger.warning("Collection - Found duplicates (%d) - %.2fs", diff, timer() - t)
         elif diff < 0:
-            logger.warning("Collection - Found gaps (%d) - %.2fs", diff, timer() - t)
+            logger.warning("Collection - Found gaps (%d) - %.2fs", abs(diff), timer() - t)
         else:
             logger.debug("Collection - Verified - %.2fs", timer() - t)
         return diff == 0
@@ -337,19 +332,47 @@ class Grabber(object):
     # Grabber
     ############################################################
 
-    def grab(self, pair, start_ts, end_ts, start_id=None, end_id=None):
+    def grab(self, pair, start_ts=None, start_id=None, end_ts=None, end_id=None):
         """
         Grabs trade history of defined period of time for a pair of symbols.
 
-        * Trade history is divided into chunks.
-        * Each chunk is immediately put into MongoDB once received to free up RAM.
+        * Traverses history from the end date to the start date (backwards)
+        * History is divided into chunks of max 50,000 records
+        * Chunks are synced by id of their oldest records
+        * Once received, each chunk is immediately put into MongoDB to free up RAM
+        * Includes passed dates - [start_ts, end_ts]
+        * Excludes passed ids - (start_id, end_id)
+        
+        The whole process looks like this:
+        1) Start recording history chunk by chunk beginning from end_ts
+
+                [ start_ts/start_id <- xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx end_ts ]
+
+            or if end_id is provided, find it first and only then start recording
+
+                [ start_ts/start_id ________________ end_id <- <- <- <- <- end_ts ]
+
+                [ start_ts/start_id <- xxxxxxxxxxxxx end_id ______________ end_ts ]
+
+
+        2) Each chunk is verified for consistency and inserted into MongoDB
+        3) Proceed until start date or id are reached, or Poloniex returned nothing
+
+                [ start_ts/start_id xxxxxxxxxxxxxxxx end_id ______________ end_ts ]
+                                        |
+                                        v
+                             newly collected history
+
+        4) Verify whole collection
+        
+        At the end we become something like this:
+        
 
         :param pair: pair of symbols
-        :param start_ts: timestamp of start point
+        :param start_ts: timestamp of start point (only as approximation, program aborts if found)
+        :param start_id: id of start point (has higher priority than ts, program aborts if found)
         :param end_ts: timestamp of end point
-        :param start_id: id of start point
         :param end_id: id of end point
-        :param max_window_size: maximum length of rolling window in seconds
         :return: None
         """
         if self.col_non_empty(pair):
@@ -359,57 +382,144 @@ class Grabber(object):
         logger.debug("%s - Collection - Achieving { %s%s, %s%s, %s }",
                      pair,
                      ts_to_str(start_ts),
-                     ' (%d)' % start_id if start_id is not None else '',
+                     ' : %d' % start_id if start_id is not None else '',
                      ts_to_str(end_ts),
-                     ' (%d)' % end_id if end_id is not None else '',
+                     ' : %d' % end_id if end_id is not None else '',
                      td_format(ts_delta(start_ts, end_ts)))
 
         t = timer()
-        # Dates are required to build rolling windows and pass them to Poloniex.
-        # Ids are optional, and are used to accurately synchronize chunks of history.
-        period = {
-            'start': {
-                'ts': start_ts,
-                '_id': start_id
-            },
-            'end': {
-                'ts': end_ts,
-                '_id': end_id
-            }
+        # Dates are required to build rolling windows and pass them to Poloniex
+        # If start and/or end dates are empty, set the widest period possible
+        if start_ts is None:
+            start_ts = 0
+        if end_ts is None:
+            end_ts = now_ts()
+        if end_ts <= start_ts:
+            raise Exception("%s - Start date { %s } above end date { %s }"%
+                            (pair, ts_to_str(start_ts), ts_to_str(end_ts)))
+        if start_id is not None and end_id is not None:
+            if end_id <= start_id:
+                raise Exception("%s - Start date { %d } above end date { %d }"%
+                                (pair, start_id, end_id))
+        # Init window params
+        # ..................
+
+        max_window_size = TimePeriod.MONTH.value
+        window = {
+            # Do not fetch more than needed, pick the size smaller or equal to max_window_size
+            'start_ts': max(end_ts - max_window_size, start_ts),
+            'end_ts': end_ts,
+            # Gets filled after first chunk is fetched
+            'anchor_id': None
         }
-        if period['end']['ts'] <= period['start']['ts']:
-            logger.debug("%s - Start date { %s } already reached", pair, ts_to_str(period['start']['ts']))
-            return
-        else:
-            max_window_size = TimePeriod.DAY.value
-            window = {}
-            # Initially, window end is the period's end
-            window['end'] = period['end']
-            # After we inserted records, verify collection
-            something_inserted = False
+        # Record only starting from end_id, or immediately if none is provided
+        recording = end_id is None
+        # After we recorded data, verify consistency in database
+        anything_recorded = False
 
-            # Two possibilities to escape the loop: 1) empty result or 2) reached the GOAL
-            while (True):
-                # If period's window is huge, choose max window size, else period's size
-                if window['end']['ts'] - period['start']['ts'] > max_window_size:
-                    window['start'] = {
-                        'ts': window['end']['ts'] - max_window_size,
-                        '_id': None
-                    }
+        # Three possibilities to escape the loop:
+        #   1) empty result
+        #   2) reached the start date/id
+        #   3) exception
+        while (True):
+            t2 = timer()
+
+            # Receive and process chunk of data
+            # .................................
+
+            logger.debug("%s - Poloniex - Querying { %s, %s, %s }",
+                         pair,
+                         ts_to_str(window['start_ts']),
+                         ts_to_str(window['end_ts']),
+                         td_format(ts_delta(window['start_ts'], window['end_ts'])))
+
+            df = self.return_trade_history(pair, window['start_ts'], window['end_ts'])
+            if df.empty:
+                logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
+                break
+
+            # If chunk contains end id (upper bound) -> start recording
+            # .........................................................
+
+            if not recording:
+                if end_id in index_by_name(df, '_id'):
+                    logger.debug("%s - Poloniex - End id { %d } found", pair, end_id)
+                    # Start recording
+                    recording = True
+
+                    df = df[index_by_name(df, '_id') < end_id]
+                    if df.empty:
+                        # TODO: Continue
+                        logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
+                        break
                 else:
-                    window['start'] = period['start']
+                    history_info = df_history_info(df)
+                    logger.debug("%s - Poloniex - End id { %d } not found in { %s : %d, %s : %d }",
+                                 pair,
+                                 end_id,
+                                 ts_to_str(history_info['start_ts']),
+                                 history_info['start_id'],
+                                 ts_to_str(history_info['end_ts']),
+                                 history_info['end_id'])
 
-                # In case of error, empty df is returned
-                t2 = timer()
-                logger.debug("%s - Poloniex - Querying { %s, %s, %s }",
-                             pair,
-                             ts_to_str(window['start']['ts']),
-                             ts_to_str(window['end']['ts']),
-                             td_format(ts_delta(window['start']['ts'], window['end']['ts'])))
-                df = self.return_trade_history(pair, window['start']['ts'], window['end']['ts'])
-                if df.empty:
-                    logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
+                    # If end id is older than the start id or date -> terminate
+                    if start_id is not None:
+                        if any(index_by_name(df, '_id') <= start_id):
+                            logger.debug("%s - Poloniex - Start id { %d } reached - aborting", pair, start_id)
+                            break
+                    if any(index_by_name(df, 'ts') <= start_ts):
+                        logger.debug("%s - Poloniex - Start date { %s } reached - aborting", pair, ts_to_str(start_ts))
+                        break
+
+            if recording:
+
+                # Synchronize with previous chunk by intersection of their ids
+                # ............................................................
+
+                if window['anchor_id'] is not None:
+                    # To merge two dataframes, there must be an intersection of ids (anchor)
+                    if any(index_by_name(df, '_id') >= window['anchor_id']):
+                        df = df[index_by_name(df, '_id') < window['anchor_id']]
+                        if df.empty:
+                            logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
+                            break
+                    else:
+                        logger.debug("%s - Poloniex - Anchor id { %d } is missing - aborting", pair,
+                                     window['anchor_id'])
+                        break
+
+                # If chunk contains start id or date (lower bound) -> finish recording
+                # ....................................................................
+
+                if start_id is not None:
+                    if any(index_by_name(df, '_id') <= start_id):
+                        df = df[index_by_name(df, '_id') > start_id]
+                        if df.empty:
+                            logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
+                        else:
+                            logger.debug("%s - Poloniex - Returned %s - %.2fs",
+                                         pair, history_info_str(df_history_info(df)), timer() - t2)
+                            logger.debug("%s - Poloniex - Start id { %d } reached - aborting", pair, start_id)
+                            if verify_history_df(df):
+                                self.insert_docs(pair, df)
+                                anything_recorded = True
+                        break  # escape anyway
+                # or at least the approx. date
+                elif any(index_by_name(df, 'ts') <= start_ts):
+                    df = df[index_by_name(df, 'ts') >= start_ts]
+                    if df.empty:
+                        logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
+                    else:
+                        logger.debug("%s - Poloniex - Returned %s - %.2fs",
+                                     pair, history_info_str(df_history_info(df)), timer() - t2)
+                        logger.debug("%s - Poloniex - Start date { %s } reached - aborting", pair, ts_to_str(start_ts))
+                        if verify_history_df(df):
+                            self.insert_docs(pair, df)
+                            anything_recorded = True
                     break
+
+                # Record data
+                # ...........
 
                 # Drop rows with NaNs
                 df.dropna(inplace=True)
@@ -421,43 +531,6 @@ class Grabber(object):
                 if df.empty:
                     logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
                     break
-                # Applies only if we have a dataset with newer history to merge with
-                if window['end']['_id'] is not None:
-                    # To merge two dataframes, there must be an intersection of ids (anchor)
-                    if any(index_by_name(df, '_id') >= window['end']['_id']):
-                        df = df[index_by_name(df, '_id') < window['end']['_id']]
-                        if df.empty:
-                            logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
-                            break
-                    else:
-                        logger.debug("%s - Poloniex - The anchor id { %d } is missing - aborting", pair,
-                                     window['end']['_id'])
-                        break
-                # Applies only if we have a dataset with older history to merge with
-                if window['start']['_id'] is not None:
-                    if any(index_by_name(df, '_id') <= window['start']['_id']):
-                        df = df[index_by_name(df, '_id') > window['start']['_id']]
-                        if df.empty:
-                            logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
-                        else:
-                            logger.debug("%s - Poloniex - Returned %s - %.2fs",
-                                         pair, history_info_str(df_history_info(df)), timer() - t2)
-                            if verify_history_df(df):
-                                self.insert_docs(pair, df)
-                                something_inserted = True
-                        break  # escape anyway
-
-                elif any(index_by_name(df, 'ts') <= period['start']['ts']):
-                    df = df[index_by_name(df, 'ts') >= period['start']['ts']]
-                    if df.empty:
-                        logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
-                    else:
-                        logger.debug("%s - Poloniex - Returned %s - %.2fs",
-                                     pair, history_info_str(df_history_info(df)), timer() - t2)
-                        if verify_history_df(df):
-                            self.insert_docs(pair, df)
-                            something_inserted = True
-                    break
 
                 # If none of the start points reached, continue with execution using new window
                 logger.debug("%s - Poloniex - Returned %s - %.2fs",
@@ -466,21 +539,28 @@ class Grabber(object):
                 if not verify_history_df(df):
                     break
                 self.insert_docs(pair, df)
-                something_inserted = True
-                history_info = self.col_history_info(pair)
-                window['end'] = {
-                    'ts': history_info['start']['ts'],
-                    '_id': history_info['start']['_id']
-                }
+                anything_recorded = True
 
-            if something_inserted:
-                if self.verify_history_col(pair):
-                    logger.debug("%s - Collection - %s - %.2fs", pair, history_info_str(self.col_history_info(pair)),
-                                 timer() - t)
-                else:
-                    raise Exception("%s - Consistency broken - fix required" % pair)
+            # Continue with next chunk
+            # ........................
+
+            history_info = df_history_info(df)
+            window['start_ts'] = max(history_info['start_ts'] - max_window_size, start_ts)
+            window['end_ts'] = history_info['start_ts']
+            window['anchor_id'] = history_info['start_id']
+
+
+        # Verify collection after recordings
+        # ..................................
+
+        if anything_recorded:
+            if self.verify_history_col(pair):
+                logger.debug("%s - Collection - %s - %.2fs", pair, history_info_str(self.col_history_info(pair)),
+                             timer() - t)
             else:
-                logger.debug("%s - Nothing returned - %.2fs", pair, timer() - t)
+                raise Exception("%s - Consistency broken - fix required" % pair)
+        else:
+            logger.debug("%s - Nothing returned - %.2fs", pair, timer() - t)
 
     def one(self, pair, start_ts=None, end_ts=None, drop=False):
         """
@@ -519,32 +599,36 @@ class Grabber(object):
         """
         if self.col_non_empty(pair) and drop:
             self.drop_col(pair)
-        if self.col_non_empty(pair):
-            history_info = self.col_history_info(pair)
 
+        if self.col_non_empty(pair):
+            # If nothing is passed, fetch the widest tail and head possible
+            if start_ts is None and end_ts is None:
+                start_ts = 0
+                end_ts = now_ts()
+
+            history_info = self.col_history_info(pair)
             # If start timestamp is given, extend the collection backwards in time
             if start_ts is not None:
-                if start_ts < history_info['start']['ts']:
+                if start_ts < history_info['start_ts']:
                     logger.debug("%s - TAIL", pair)
                     self.grab(pair,
-                              start_ts,
-                              history_info['start']['ts'],
-                              end_id=history_info['start']['_id'])
+                              start_ts=start_ts,
+                              end_ts=history_info['start_ts'],
+                              end_id=history_info['start_id'])
             # If end timestamp is given, extend the collection forwards in time
             if end_ts is not None:
-                if end_ts > history_info['end']['ts']:
+                if end_ts > history_info['end_ts']:
                     logger.debug("%s - HEAD", pair)
                     self.grab(pair,
-                              history_info['end']['ts'],
-                              end_ts,
-                              start_id=history_info['end']['_id'])
+                              start_ts=history_info['end_ts'],
+                              end_ts=end_ts,
+                              start_id=history_info['end_id'])
         else:
-            # If both timestamps are given, grab whole collection
-            if start_ts is not None and end_ts is not None:
-                logger.debug("%s - FULL", pair)
-                self.grab(pair, start_ts, end_ts)
-            else:
-                raise Exception("%s - Error - Both, start and end dates must be provided" % pair)
+            # Just pass arguments to grab()
+            logger.debug("%s - FULL", pair)
+            self.grab(pair,
+                      start_ts=start_ts,
+                      end_ts=end_ts)
 
     def row(self, pairs, start_ts=None, end_ts=None, drop=False):
         """
@@ -563,9 +647,11 @@ class Grabber(object):
             logger.info("%s - Finished - %.2fs", pair, timer() - t)
         self.db_short_info()
 
-    def ring(self, pairs, start_ts=None, drop=False, every=TimePeriod.MINUTE.value, iterations=None):
+    def ring(self, pairs, every=TimePeriod.MINUTE.value, iterations=None):
         """
         Grabs the most recent data for a row of pairs on repeat
+
+        Requires all pairs to be persistent in the database.
 
         :param pairs: list of pairs
         :param start_ts: timestamp of the start point
@@ -578,12 +664,8 @@ class Grabber(object):
         iteration = 1
         while (True):
             logger.info("Row - Iteration %d", iteration)
-            if start_ts is not None and iteration == 1:
-                # Collect tail only 1 time, to extend the previous collected history
-                self.row(pairs, start_ts=start_ts, end_ts=ts_now(), drop=drop)
-            else:
-                # Collect head every defined time, as present is dynamic
-                self.row(pairs, end_ts=ts_now())
+            # Collect head every predefined amount of time
+            self.row(pairs, end_ts=now_ts())
             iteration += 1
             if iterations is not None and iteration > iterations:
                 break
