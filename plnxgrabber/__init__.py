@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 # No logging by default
 logger.addHandler(logging.NullHandler())
 
+
 # Date & time
 ############################################################
 
@@ -204,8 +205,7 @@ class Grabber(object):
                             sum(self.db[cname].count() for cname in self.db.collection_names())))
 
     def db_long_info(self):
-        # Shows detailed descriptions of each collection
-        self.db_short_info()
+        # Shows detailed descriptions of each collection\
         logger.info(''.join(["\n{0} - {1}".format(cname, history_info_str(self.col_history_info(cname))) for cname in
                              self.db.collection_names()]))
 
@@ -546,7 +546,7 @@ class Grabber(object):
             else:
                 raise Exception("%s - Error - Both, start and end dates must be provided" % pair)
 
-    def row(self, pairs, start_ts=None, end_ts=None, drop=False, db_info=True):
+    def row(self, pairs, start_ts=None, end_ts=None, drop=False):
         """
         Grabs data for each pair in a row
 
@@ -554,40 +554,36 @@ class Grabber(object):
         :param start_ts: timestamp of the start point
         :param end_ts: timestamp of the end point
         :param drop: delete underlying collection before insert
-        :param db_info: show short information on current db status
         :return: None
         """
-        if db_info:
-            self.db_short_info()
         for i, pair in enumerate(pairs):
             t = timer()
             logger.info("%s - %d/%d", pair, i + 1, len(pairs))
             self.one(pair, start_ts=start_ts, end_ts=end_ts, drop=drop)
             logger.info("%s - Finished - %.2fs", pair, timer() - t)
-        if db_info:
-            self.db_short_info()
+        self.db_short_info()
 
-    def ring(self, pairs, start_ts=None, every=TimePeriod.MINUTE.value, iterations=None):
+    def ring(self, pairs, start_ts=None, drop=False, every=TimePeriod.MINUTE.value, iterations=None):
         """
         Grabs the most recent data for a row of pairs on repeat
 
         :param pairs: list of pairs
         :param start_ts: timestamp of the start point
+        :param drop: delete underlying collection before insert (requires start_ts)
         :param every: timestamp of the end point
         :param iterations: maximum number of times a grabber row is executed
         :return: None
-        """
-        self.db_short_info()
+"""
         logger.info("Ring - %d pairs - Every %s", len(pairs), td_format(timedelta(seconds=every)))
         iteration = 1
         while (True):
             logger.info("Row - Iteration %d", iteration)
             if start_ts is not None and iteration == 1:
                 # Collect tail only 1 time, to extend the previous collected history
-                self.row(pairs, start_ts=start_ts, end_ts=ts_now(), db_info=False)
+                self.row(pairs, start_ts=start_ts, end_ts=ts_now(), drop=drop)
             else:
                 # Collect head every defined time, as present is dynamic
-                self.row(pairs, end_ts=ts_now(), db_info=False)
+                self.row(pairs, end_ts=ts_now())
             iteration += 1
             if iterations is not None and iteration > iterations:
                 break
