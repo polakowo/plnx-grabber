@@ -1,17 +1,25 @@
 # plnx-grabber
 Grabber of trade history from Poloniex exchange
 
-### Examples
+### Installation
 
-First, instantiate Grabber class:
+```
+pip install https://github.com/polakowo/plnx-grabber/archive/master.zip
+```
+
+### Usage
+
+#### Basic Setup
+
 ```python
 from poloniex import Poloniex
 from pymongo import MongoClient
 import plnxgrabber
 
+polo = Poloniex()
 client = MongoClient('localhost:27017')
-db = client[name]
-grabber = plnxgrabber.Grabber(Poloniex(), db['TradeHistory'])
+db = client['TradeHistory']
+grabber = plnxgrabber.Grabber(polo, db)
 ```
 
 #### Single pair, single action
