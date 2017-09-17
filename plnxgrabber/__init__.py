@@ -582,29 +582,29 @@ class Grabber(object):
             History not provided or overwritten:
 
             1) Full dataset is fetched
-                start_ts ____________________FULL_____________________ end_ts
+                [ start_ts __________________FULL___________________ end_ts ]
 
             History provided:
 
             2) start_ts, end_ts: Both, tail and head datasets are fetched
-                start_ts _____TAIL_____ [ xxxxxxxxxxx ] _____HEAD_____ end_ts
+                [ start_ts _____TAIL_____ xxxxxxxxxxx _____HEAD_____ end_ts ]
 
             3) start_ts=None, end_ts: Only head dataset is fetched
-                [ xxxxxxxxxxx ] _________________HEAD_________________ end_ts
+                [ xxxxxxxxxxx _________________HEAD_________________ end_ts ]
 
             4) start_ts, end_ts=None: Only tail dataset is fetched
-                start_ts ________________TAIL________________ [ xxxxxxxxxxx ]
+                [ start_ts ________________TAIL________________ xxxxxxxxxxx ]
 
             5) start_ts=None, end_ts=None: History is completely filled from both sides
-                start_ts _____TAIL_____ [ xxxxxxxxxxx ] _____HEAD_____ end_ts
+                [ start_ts _____TAIL_____ xxxxxxxxxxx _____HEAD_____ end_ts ]
 
             To avoid gaps:
 
             Start point is forced to the left and then head is fetched
-                [ xxxxxxxxxxx ] ____________<- start_ts _____HEAD_____ end_ts
+                [ xxxxxxxxxxx ____________<- start_ts _____HEAD_____ end_ts ]
 
             End point is forced to the right and then tail is fetched
-                start_ts _____TAIL_____ end_ts ->____________ [ xxxxxxxxxxx ]
+                [ start_ts _____TAIL_____ end_ts ->____________ xxxxxxxxxxx ]
 
 
         :param pair: pair of symbols
