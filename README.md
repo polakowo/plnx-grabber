@@ -108,4 +108,9 @@ Update a row of pairs 3 times:
 grabber.ring(["USDT_BTC", "USDT_ETH"], every=60, iterations=3)
 ```
 
+Update continuously:
+```python
+grabber.ring(["USDT_BTC", "USDT_ETH"])
+```
+
 ***Important**: Ring only updates, and requires collections to be non-empty. If you want to collect history for a row of pairs and then update them every predefined amount of time, first execute a row and then a ring. See comments for further details.*
