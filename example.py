@@ -26,8 +26,7 @@ def main():
     end_ts = arrow.Arrow(2017, 9, 1, 0, 5, 0).timestamp
     #end_id = 7821761
 
-    grabber.drop_col('USDT_BTC')
-    grabber.grab('USDT_BTC', start_ts=start_ts, end_ts=end_ts)
+    grabber.one('USDT_BTC', start_ts=start_ts, end_ts=end_ts, overwrite=True)
 
 
 if __name__ == '__main__':

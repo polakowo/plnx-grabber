@@ -179,12 +179,11 @@ class Grabber(object):
     save of many chunks of data. Moreover, there is no fixed amount of records per unit of time, which
     requires a synchronization of chunks by trade id.
 
-    For example: If we would like to go one month back at a time, Poloniex could have returned us only
-    the (most recent) half of the records. Because Polo returns only 50,000 of the latest records (not
-    the oldest ones) for a time period, we can grab history only by going backwards. Otherwise, we
-    cannot know which time interval to choose to fill all records in order to synchronize with
-    previous chunk. That's why we go backwards in time, set highest time intervals, and use the oldest
-    record Poloniex outputs for each chunk as an anchor for the next one.
+    For example: If we would like to go one month back in time, Poloniex could have returned us only
+    the most recent week. Because Polo returns only 50,000 of the latest records (not the oldest ones),
+    we can synchronize chunks only by going backwards. Otherwise, if we decided to go forwards in time,
+    we couldn't know which time interval to choose to fill all records in order to synchronize with
+    previous chunk.
     """
 
     def __init__(self, polo, db):
@@ -203,7 +202,7 @@ class Grabber(object):
                             sum(self.db[cname].count() for cname in self.db.collection_names())))
 
     def db_long_info(self):
-        # Shows detailed descriptions of each collection\
+        # Shows detailed descriptions of each collection
         logger.info(''.join(["\n{0} - {1}".format(cname, history_info_str(self.col_history_info(cname))) for cname in
                              self.db.collection_names()]))
 
@@ -334,39 +333,44 @@ class Grabber(object):
 
     def grab(self, pair, start_ts=None, start_id=None, end_ts=None, end_id=None):
         """
-        Grabs trade history of defined period of time for a pair of symbols.
+        Grabs trade history of a period of time for a pair of symbols.
 
         * Traverses history from the end date to the start date (backwards)
         * History is divided into chunks of max 50,000 records
         * Chunks are synced by id of their oldest records
         * Once received, each chunk is immediately put into MongoDB to free up RAM
-        * Includes passed dates - [start_ts, end_ts]
-        * Excludes passed ids - (start_id, end_id)
+        * Result includes passed dates - [start_ts, end_ts]
+        * Result excludes passed ids - (start_id, end_id)
+        * Ids have higher priority than dates
         
         The whole process looks like this:
         1) Start recording history chunk by chunk beginning from end_ts
 
-                [ start_ts/start_id <- xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx end_ts ]
+                [ start_ts/start_id <- xxxxxxxxxxxxxxxxxxxxxxxxxxx end_ts ]
 
             or if end_id is provided, find it first and only then start recording
 
-                [ start_ts/start_id ________________ end_id <- <- <- <- <- end_ts ]
+                [ start_ts/start_id ___________ end_id <- <- <- <- end_ts ]
 
-                [ start_ts/start_id <- xxxxxxxxxxxxx end_id ______________ end_ts ]
+                [ start_ts/start_id <- xxxxxxxx end_id ___________ end_ts ]
 
 
         2) Each chunk is verified for consistency and inserted into MongoDB
         3) Proceed until start date or id are reached, or Poloniex returned nothing
 
-                [ start_ts/start_id xxxxxxxxxxxxxxxx end_id ______________ end_ts ]
-                                        |
-                                        v
-                             newly collected history
+                [ start_ts/start_id xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx end_ts ]
+                                                   |
+                                                   v
+                                           collected history
+
+            or if end_id is provided
+
+                [ start_ts/start_id xxxxxxxxxxx end_id ___________ end_ts ]
+                                         |
+                                         v
+                                 collected history
 
         4) Verify whole collection
-        
-        At the end we become something like this:
-        
 
         :param pair: pair of symbols
         :param start_ts: timestamp of start point (only as approximation, program aborts if found)
@@ -388,6 +392,10 @@ class Grabber(object):
                      td_format(ts_delta(start_ts, end_ts)))
 
         t = timer()
+
+        # Init window params
+        # ..................
+
         # Dates are required to build rolling windows and pass them to Poloniex
         # If start and/or end dates are empty, set the widest period possible
         if start_ts is None:
@@ -401,8 +409,6 @@ class Grabber(object):
             if end_id <= start_id:
                 raise Exception("%s - Start date { %d } above end date { %d }"%
                                 (pair, start_id, end_id))
-        # Init window params
-        # ..................
 
         max_window_size = TimePeriod.MONTH.value
         window = {
@@ -442,6 +448,7 @@ class Grabber(object):
             # .........................................................
 
             if not recording:
+                # End id found
                 if end_id in index_by_name(df, '_id'):
                     logger.debug("%s - Poloniex - End id { %d } found", pair, end_id)
                     # Start recording
@@ -449,7 +456,6 @@ class Grabber(object):
 
                     df = df[index_by_name(df, '_id') < end_id]
                     if df.empty:
-                        # TODO: Continue
                         logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
                         break
                 else:
@@ -462,7 +468,7 @@ class Grabber(object):
                                  ts_to_str(history_info['end_ts']),
                                  history_info['end_id'])
 
-                    # If end id is older than the start id or date -> terminate
+                    # If start reached -> terminate
                     if start_id is not None:
                         if any(index_by_name(df, '_id') <= start_id):
                             logger.debug("%s - Poloniex - Start id { %d } reached - aborting", pair, start_id)
@@ -470,6 +476,11 @@ class Grabber(object):
                     if any(index_by_name(df, 'ts') <= start_ts):
                         logger.debug("%s - Poloniex - Start date { %s } reached - aborting", pair, ts_to_str(start_ts))
                         break
+
+                    history_info = df_history_info(df)
+                    window['start_ts'] = max(history_info['start_ts'] - max_window_size, start_ts)
+                    window['end_ts'] = history_info['start_ts']
+                    continue
 
             if recording:
 
@@ -541,13 +552,13 @@ class Grabber(object):
                 self.insert_docs(pair, df)
                 anything_recorded = True
 
-            # Continue with next chunk
-            # ........................
+                # Continue with next chunk
+                # ........................
 
-            history_info = df_history_info(df)
-            window['start_ts'] = max(history_info['start_ts'] - max_window_size, start_ts)
-            window['end_ts'] = history_info['start_ts']
-            window['anchor_id'] = history_info['start_id']
+                history_info = df_history_info(df)
+                window['start_ts'] = max(history_info['start_ts'] - max_window_size, start_ts)
+                window['end_ts'] = history_info['start_ts']
+                window['anchor_id'] = history_info['start_id']
 
 
         # Verify collection after recordings
@@ -562,42 +573,47 @@ class Grabber(object):
         else:
             logger.debug("%s - Nothing returned - %.2fs", pair, timer() - t)
 
-    def one(self, pair, start_ts=None, end_ts=None, drop=False):
+    def one(self, pair, start_ts=None, end_ts=None, overwrite=False):
         """
         Grabs data for a pair based on passed params as well as history stored in the underlying collection
 
-        There are 6 supported configurations:
+        There are 5 supported configurations:
 
-            History not provided:
+            History not provided or overwritten:
 
             1) Full dataset is fetched
                 start_ts ____________________FULL_____________________ end_ts
 
             History provided:
 
-            1) Both, tail and head datasets are fetched
+            2) start_ts, end_ts: Both, tail and head datasets are fetched
                 start_ts _____TAIL_____ [ xxxxxxxxxxx ] _____HEAD_____ end_ts
 
-            2) start_ts=None: Only head dataset is fetched
+            3) start_ts=None, end_ts: Only head dataset is fetched
                 [ xxxxxxxxxxx ] _________________HEAD_________________ end_ts
 
-            3) end_ts=None: Only tail dataset is fetched
+            4) start_ts, end_ts=None: Only tail dataset is fetched
                 start_ts ________________TAIL________________ [ xxxxxxxxxxx ]
 
-            4) To avoid gaps, start point is forced to the left and then head is fetched
+            5) start_ts=None, end_ts=None: History is completely filled from both sides
+                start_ts _____TAIL_____ [ xxxxxxxxxxx ] _____HEAD_____ end_ts
+
+            To avoid gaps:
+
+            Start point is forced to the left and then head is fetched
                 [ xxxxxxxxxxx ] ____________<- start_ts _____HEAD_____ end_ts
 
-            5) To avoid gaps, end point is forced to the right and then tail is fetched
+            End point is forced to the right and then tail is fetched
                 start_ts _____TAIL_____ end_ts ->____________ [ xxxxxxxxxxx ]
 
 
         :param pair: pair of symbols
         :param start_ts: timestamp of the start point
         :param end_ts: timestamp of the end point
-        :param drop: delete underlying collection before insert
+        :param overwrite: delete underlying collection before insert
         :return: None
         """
-        if self.col_non_empty(pair) and drop:
+        if self.col_non_empty(pair) and overwrite:
             self.drop_col(pair)
 
         if self.col_non_empty(pair):
@@ -630,20 +646,20 @@ class Grabber(object):
                       start_ts=start_ts,
                       end_ts=end_ts)
 
-    def row(self, pairs, start_ts=None, end_ts=None, drop=False):
+    def row(self, pairs, start_ts=None, end_ts=None, overwrite=False):
         """
         Grabs data for each pair in a row
 
         :param pairs: list of pairs
         :param start_ts: timestamp of the start point
         :param end_ts: timestamp of the end point
-        :param drop: delete underlying collection before insert
+        :param overwrite: delete underlying collection before insert
         :return: None
         """
         for i, pair in enumerate(pairs):
             t = timer()
             logger.info("%s - %d/%d", pair, i + 1, len(pairs))
-            self.one(pair, start_ts=start_ts, end_ts=end_ts, drop=drop)
+            self.one(pair, start_ts=start_ts, end_ts=end_ts, overwrite=overwrite)
             logger.info("%s - Finished - %.2fs", pair, timer() - t)
         self.db_short_info()
 
@@ -655,7 +671,7 @@ class Grabber(object):
 
         :param pairs: list of pairs
         :param start_ts: timestamp of the start point
-        :param drop: delete underlying collection before insert (requires start_ts)
+        :param overwrite: delete underlying collection before insert (requires start_ts)
         :param every: timestamp of the end point
         :param iterations: maximum number of times a grabber row is executed
         :return: None
