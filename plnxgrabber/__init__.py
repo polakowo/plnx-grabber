@@ -407,7 +407,7 @@ class Grabber(object):
                             (pair, ts_to_str(start_ts), ts_to_str(end_ts)))
         if start_id is not None and end_id is not None:
             if end_id <= start_id:
-                raise Exception("%s - Start date { %d } above end date { %d }"%
+                raise Exception("%s - Start id { %d } above end id { %d }"%
                                 (pair, start_id, end_id))
 
         max_window_size = TimePeriod.MONTH.value
@@ -574,73 +574,68 @@ class Grabber(object):
             logger.debug("%s - Nothing returned - %.2fs", pair, timer() - t)
 
     def one(self, pair, start_ts=None, end_ts=None, overwrite=False):
+
         """
         Grabs data for a pair based on passed params as well as history stored in the underlying collection
 
-        There are 5 supported configurations:
-
-            History not provided or overwritten:
-
-            1) Full dataset is fetched
-                [ start_ts __________________FULL___________________ end_ts ]
-
-            History provided:
-
-            2) start_ts, end_ts: Both, tail and head datasets are fetched
-                [ start_ts _____TAIL_____ xxxxxxxxxxx _____HEAD_____ end_ts ]
-
-            3) start_ts=None, end_ts: Only head dataset is fetched
-                [ xxxxxxxxxxx _________________HEAD_________________ end_ts ]
-
-            4) start_ts, end_ts=None: Only tail dataset is fetched
-                [ start_ts ________________TAIL________________ xxxxxxxxxxx ]
-
-            5) start_ts=None, end_ts=None: History is completely filled from both sides
-                [ start_ts _____TAIL_____ xxxxxxxxxxx _____HEAD_____ end_ts ]
-
-            To avoid gaps:
-
-            Start point is forced to the left and then head is fetched
-                [ xxxxxxxxxxx ____________<- start_ts _____HEAD_____ end_ts ]
-
-            End point is forced to the right and then tail is fetched
-                [ start_ts _____TAIL_____ end_ts ->____________ xxxxxxxxxxx ]
-
+        Possible values of start_ts and end_ts:
+        * 'lower' means the start_ts of the collection
+        * 'upper' means the end_ts of the collection
 
         :param pair: pair of symbols
-        :param start_ts: timestamp of the start point
-        :param end_ts: timestamp of the end point
+        :param start_ts: timestamp of the start point or lower bound of persisted history
+        :param end_ts: timestamp of the end point or upper boundof persisted history
         :param overwrite: delete underlying collection before insert
         :return: None
         """
-        if self.col_non_empty(pair) and overwrite:
-            self.drop_col(pair)
+
+        # Fill timestamps of collection's bounds
+        if self.col_non_empty(pair):
+            history_info = self.col_history_info(pair)
+
+            start_ts = history_info['start_ts'] if start_ts == 'lower' else start_ts
+            start_ts = history_info['end_ts'] if start_ts == 'upper' else start_ts
+            end_ts = history_info['start_ts'] if end_ts == 'lower' else end_ts
+            end_ts = history_info['end_ts'] if end_ts == 'upper' else end_ts
+
+            # Overwrite means drop completely
+            if overwrite:
+                self.drop_col(pair)
+
+        # If nothing is passed, fetch the widest tail and/or head possible
+        if start_ts is None:
+            start_ts = 0
+        if end_ts is None:
+            end_ts = now_ts()
 
         if self.col_non_empty(pair):
-            # If nothing is passed, fetch the widest tail and head possible
-            if start_ts is None and end_ts is None:
-                start_ts = 0
-                end_ts = now_ts()
-
             history_info = self.col_history_info(pair)
-            # If start timestamp is given, extend the collection backwards in time
-            if start_ts is not None:
-                if start_ts < history_info['start_ts']:
-                    logger.debug("%s - TAIL", pair)
-                    self.grab(pair,
-                              start_ts=start_ts,
-                              end_ts=history_info['start_ts'],
-                              end_id=history_info['start_id'])
-            # If end timestamp is given, extend the collection forwards in time
-            if end_ts is not None:
-                if end_ts > history_info['end_ts']:
-                    logger.debug("%s - HEAD", pair)
-                    self.grab(pair,
-                              start_ts=history_info['end_ts'],
-                              end_ts=end_ts,
-                              start_id=history_info['end_id'])
+
+            # Period must be non-zero
+            if start_ts >= end_ts:
+                raise Exception("%s - Start date { %s } above end date { %s }"%
+                            (pair, ts_to_str(start_ts), ts_to_str(end_ts)))
+
+            if start_ts < history_info['start_ts']:
+                logger.debug("%s - TAIL", pair)
+                self.grab(pair,
+                          start_ts=start_ts,
+                          end_ts=history_info['start_ts'],
+                          end_id=history_info['start_id'])
+
+            if end_ts > history_info['end_ts']:
+                logger.debug("%s - HEAD", pair)
+                self.grab(pair,
+                          start_ts=history_info['end_ts'],
+                          end_ts=end_ts,
+                          start_id=history_info['end_id'])
         else:
-            # Just pass arguments to grab()
+            # There is no upper or lower bounds of empty collection
+            if start_ts == 'upper':
+                raise Exception("%s - History not found - cannot find upper bound", pair)
+            if end_ts == 'lower':
+                raise Exception("%s - History not found - cannot find lower bound", pair)
+
             logger.debug("%s - FULL", pair)
             self.grab(pair,
                       start_ts=start_ts,
@@ -663,27 +658,27 @@ class Grabber(object):
             logger.info("%s - Finished - %.2fs", pair, timer() - t)
         self.db_short_info()
 
-    def ring(self, pairs, every=TimePeriod.MINUTE.value, iterations=None):
+    def ring(self, pairs, every=None, iterations=None):
         """
         Grabs the most recent data for a row of pairs on repeat
 
-        Requires all pairs to be persistent in the database.
+        Requires all pairs to be persistent in the database
 
         :param pairs: list of pairs
-        :param start_ts: timestamp of the start point
-        :param overwrite: delete underlying collection before insert (requires start_ts)
-        :param every: timestamp of the end point
+        :param every: pause between iterations
         :param iterations: maximum number of times a grabber row is executed
         :return: None
 """
-        logger.info("Ring - %d pairs - Every %s", len(pairs), td_format(timedelta(seconds=every)))
+        logger.info("Ring - %d pairs - %s",
+                    len(pairs), "Continuously" if every is None else td_format(timedelta(seconds=every)))
         iteration = 1
         while (True):
             logger.info("Row - Iteration %d", iteration)
-            # Collect head every predefined amount of time
+            # Collect head every time interval
             self.row(pairs, end_ts=now_ts())
             iteration += 1
             if iterations is not None and iteration > iterations:
                 break
-            sleep(every)
+            if every is not None:
+                sleep(every)
         self.db_long_info()

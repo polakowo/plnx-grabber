@@ -34,7 +34,7 @@ grabber.one('USDT_BCH')
 # or grabber.one('USDT_BCH', start_ts=0, end_ts=plnxgrabber.ts_now())
 ```
 
-Fetch history of a period of time:
+Fetch the history of a period of time:
 ```python
 start_ts = arrow.Arrow(2017, 9, 1, 0, 0, 0).timestamp
 end_ts = arrow.Arrow(2017, 9, 1, 0, 5, 0).timestamp
@@ -52,22 +52,28 @@ grabber.one('USDT_BTC', start_ts=plnxgrabber.ts_ago(60*60))
 
 If no `overwrite` parameter passed, extend previously populated collection.
 
-Extend collection by latest records:
+Extend the collection's upper bound by latest records:
 ```python
-grabber.one('USDT_BTC', end_ts=plnxgrabber.ts_now())
+grabber.one('USDT_BTC', start_ts='upper')
+
+# or grabber.one('USDT_BTC', start_ts='upper', end_ts=plnxgrabber.now_ts())
 ```
 
-Extend collection by earliest records:
+Extend the collection's lower bound by earliest records:
 ```python
-grabber.one('USDT_BTC', start_ts=0)
+grabber.one('USDT_BTC', end_ts='lower')
+
+# or grabber.one('USDT_BTC', start_ts=0, end_ts='lower')
 ```
 
-Complete collection from both its ends:
+Extend both collection's bounds:
 ```python
 grabber.one('USDT_BTC')
+
+# or grabber.one('USDT_BTC', start_ts=0, end_ts=plnxgrabber.now_ts())
 ```
 
-Extend collection by records from a period of time:
+Extend both collection's bounds to completely fill a period:
 ```python
 start_ts = arrow.Arrow(2017, 1, 1, 0, 0, 0).timestamp
 end_ts = arrow.Arrow(2017, 9, 1, 0, 0, 0).timestamp
@@ -78,13 +84,14 @@ grabber.one('USDT_BTC', start_ts=start_ts, end_ts=end_ts)
 
 If `overwrite` parameter passed, overwrite collection completely.
 
+Fill the collection's bounds again:
 ```python
-grabber.one('USDT_BCH', overwrite=True)
+grabber.one('USDT_BCH', start_ts='lower', end_ts='upper', overwrite=True)
 ```
 
 ### Multiple pairs, single action
 
-For a row of pairs, collect last 5 minutes:
+For a row of pairs, collect the last 5 minutes:
 ```python
 grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC'], start_ts=plnxgrabber.ts_ago(5*60))
 ```
