@@ -25,6 +25,7 @@ from timeit import default_timer as timer
 
 import arrow
 import pandas as pd
+import pymongo
 
 # Logger
 ############################################################
@@ -94,12 +95,12 @@ def td_format(td_object):
 
 class TimePeriod(Enum):
     SECOND = 1
-    MINUTE = 60*SECOND
-    HOUR = 60*MINUTE
-    DAY = 24*HOUR
-    WEEK = 7*DAY
-    MONTH = 30*DAY
-    YEAR = 12*MONTH
+    MINUTE = 60 * SECOND
+    HOUR = 60 * MINUTE
+    DAY = 24 * HOUR
+    WEEK = 7 * DAY
+    MONTH = 30 * DAY
+    YEAR = 12 * MONTH
 
 
 # Dataframes
@@ -208,6 +209,11 @@ class Grabber(object):
 
     # Collections
 
+    def create_col(self, cname):
+        # Create new collection and index on timestamp field
+        self.db.create_collection(cname)
+        self.db[cname].create_index([('ts', pymongo.ASCENDING)], unique=False, background=True)
+
     def drop_col(self, cname):
         # Delete collection entirely
         self.db[cname].drop()
@@ -239,7 +245,6 @@ class Grabber(object):
             'delta': ts_delta(start_dict['ts'], end_dict['ts']),
             'count': self.col_count(cname),
             'memory': self.col_memory(cname)}
-
 
     def verify_history_col(self, cname):
         # Verifies the incremental nature of trade id across history
@@ -383,6 +388,8 @@ class Grabber(object):
             logger.debug("%s - Collection - %s", pair, history_info_str(self.col_history_info(pair)))
         else:
             logger.debug("%s - Collection - Empty", pair)
+            # Create new collection
+            self.create_col(pair)
         logger.debug("%s - Collection - Achieving { %s%s, %s%s, %s }",
                      pair,
                      ts_to_str(start_ts),
@@ -403,11 +410,11 @@ class Grabber(object):
         if end_ts is None:
             end_ts = now_ts()
         if end_ts <= start_ts:
-            raise Exception("%s - Start date { %s } above end date { %s }"%
+            raise Exception("%s - Start date { %s } above end date { %s }" %
                             (pair, ts_to_str(start_ts), ts_to_str(end_ts)))
         if start_id is not None and end_id is not None:
             if end_id <= start_id:
-                raise Exception("%s - Start id { %d } above end id { %d }"%
+                raise Exception("%s - Start id { %d } above end id { %d }" %
                                 (pair, start_id, end_id))
 
         max_window_size = TimePeriod.MONTH.value
@@ -560,7 +567,6 @@ class Grabber(object):
                 window['end_ts'] = history_info['start_ts']
                 window['anchor_id'] = history_info['start_id']
 
-
         # Verify collection after recordings
         # ..................................
 
@@ -613,8 +619,8 @@ class Grabber(object):
 
             # Period must be non-zero
             if start_ts >= end_ts:
-                raise Exception("%s - Start date { %s } above end date { %s }"%
-                            (pair, ts_to_str(start_ts), ts_to_str(end_ts)))
+                raise Exception("%s - Start date { %s } above end date { %s }" %
+                                (pair, ts_to_str(start_ts), ts_to_str(end_ts)))
 
             if start_ts < history_info['start_ts']:
                 logger.debug("%s - TAIL", pair)
@@ -668,7 +674,7 @@ class Grabber(object):
         :param every: pause between iterations
         :param iterations: maximum number of times a grabber row is executed
         :return: None
-"""
+        """
         logger.info("Ring - %d pairs - %s",
                     len(pairs), "Continuously" if every is None else td_format(timedelta(seconds=every)))
         iteration = 1

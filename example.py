@@ -18,13 +18,15 @@ def main():
                         datefmt='%d/%m/%Y %H:%M:%S',
                         level=logging.DEBUG)
 
-    grabber = plnxgrabber.Grabber(Poloniex(), get_db('TradeHistory'))
+    polo = Poloniex()
+    db = get_db('TradeHistory')
+    grabber = plnxgrabber.Grabber(polo, db)
 
     # Fetch 5 minutes
     start_ts = arrow.Arrow(2017, 9, 1, 0, 0, 0).timestamp
-    #start_id = 7821708
+    # start_id = 7821708
     end_ts = arrow.Arrow(2017, 9, 1, 0, 5, 0).timestamp
-    #end_id = 7821761
+    # end_id = 7821761
 
     grabber.one('USDT_BTC', start_ts=start_ts, end_ts=end_ts, overwrite=True)
 
