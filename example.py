@@ -20,13 +20,14 @@ def main():
 
     grabber = plnxgrabber.Grabber(Poloniex(), get_db('TradeHistory'))
 
-    start_ts = arrow.Arrow(2017, 9, 16, 19, 54, 19).timestamp
-    start_id = 8638997
-    end_ts = arrow.Arrow(2017, 9, 16, 19, 59, 14).timestamp
-    end_id = 8639050
+    # Fetch 5 minutes
+    start_ts = arrow.Arrow(2017, 9, 1, 0, 0, 0).timestamp
+    #start_id = 7821708
+    end_ts = arrow.Arrow(2017, 9, 1, 0, 5, 0).timestamp
+    #end_id = 7821761
 
     grabber.drop_col('USDT_BTC')
-    grabber.grab('USDT_BTC', start_ts=start_ts, end_ts=end_ts-60, end_id=end_id)
+    grabber.grab('USDT_BTC', start_ts=start_ts, end_ts=end_ts)
 
 
 if __name__ == '__main__':
