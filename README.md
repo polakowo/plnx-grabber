@@ -25,7 +25,7 @@ grabber = plnxgrabber.Grabber(polo, db)
 
 ### Single pair, single action
 
-#### Collection empty yet
+#### 1) Collection empty yet
 
 Fetch the entire history for a pair of symbols:
 ```python
@@ -48,7 +48,7 @@ grabber.one('USDT_BTC', start_ts=plnxgrabber.ts_ago(60*60))
 # or grabber.one('USDT_BTC', start_ts=plnxgrabber.ts_ago(60*60), end_ts=plnxgrabber.ts_now())
 ```
 
-#### Collection not empty
+#### 2) Collection not empty
 
 If no `overwrite` parameter passed, extend previously populated collection.
 
