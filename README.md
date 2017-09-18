@@ -1,7 +1,7 @@
 # plnx-grabber
 Grabs trade history from Poloniex exchange and chunk-wise inserts into MongoDB
 
-<img src="https://media.giphy.com/media/xT9IgCFlWcqQTVdbLG/giphy.gif" height="300" />
+![UbIlti](https://i.makeagif.com/media/9-18-2017/UbIlti.gif)
 
 ## Installation
 
