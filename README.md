@@ -41,8 +41,6 @@ end_ts = arrow.Arrow(2017, 9, 1, 18, 0, 0).timestamp
 grabber.one('USDT_BTC', start_ts=start_ts, end_ts=end_ts)
 ```
 
-![UbIlti](https://i.makeagif.com/media/9-18-2017/UbIlti.gif)
-
 Collect the last hour:
 ```python
 grabber.one('USDT_BTC', start_ts=plnxgrabber.ts_ago(60*60))
@@ -93,10 +91,14 @@ grabber.one('USDT_BCH', start_ts='lower', end_ts='upper', overwrite=True)
 
 ### Multiple pairs, single action
 
-For a row of pairs, collect the last 5 minutes:
+For each pair in a row, collect history of a period of time:
 ```python
-grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC'], start_ts=plnxgrabber.ts_ago(5*60))
+start_ts = arrow.Arrow(2017, 9, 1, 12, 0, 0).timestamp
+end_ts = arrow.Arrow(2017, 9, 1, 18, 0, 0).timestamp
+grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH'], start_ts=start_ts, end_ts=end_ts, overwrite=True)
 ```
+
+![UbIlti](https://i.makeagif.com/media/9-18-2017/UbIlti.gif)
 
 ### Multiple pairs, repeating action
 
