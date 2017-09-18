@@ -1,8 +1,6 @@
 # plnx-grabber
 Grabs trade history from Poloniex exchange and chunk-wise inserts into MongoDB
 
-![UbIlti](https://i.makeagif.com/media/9-18-2017/UbIlti.gif)
-
 ## Installation
 
 ```
@@ -38,10 +36,12 @@ grabber.one('USDT_BCH')
 
 Fetch the history of a period of time:
 ```python
-start_ts = arrow.Arrow(2017, 9, 1, 0, 0, 0).timestamp
-end_ts = arrow.Arrow(2017, 9, 1, 0, 5, 0).timestamp
+start_ts = arrow.Arrow(2017, 9, 1, 12, 0, 0).timestamp
+end_ts = arrow.Arrow(2017, 9, 1, 18, 0, 0).timestamp
 grabber.one('USDT_BTC', start_ts=start_ts, end_ts=end_ts)
 ```
+
+![UbIlti](https://i.makeagif.com/media/9-18-2017/UbIlti.gif)
 
 Collect the last hour:
 ```python
