@@ -7,9 +7,7 @@ Grabs trade history from Poloniex exchange and chunk-wise inserts into MongoDB
 pip install https://github.com/polakowo/plnx-grabber/archive/master.zip
 ```
 
-## Usage
-
-### Basic Setup
+## Setup
 
 ```python
 from poloniex import Poloniex
@@ -22,6 +20,8 @@ client = MongoClient('localhost:27017')
 db = client['TradeHistory']
 grabber = plnxgrabber.Grabber(polo, db)
 ```
+
+## How-To
 
 ### Single pair, single action
 
