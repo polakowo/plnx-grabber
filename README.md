@@ -118,7 +118,7 @@ grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH'], from_ts=from_ts, t
 
 * Pass 'ticker' instead of pair to perform an action on all pairs traded on Poloniex
 * Pass 'db' to perform an action on all pairs stored locally
-* Or even use Regex
+* Or use Regex
 
 For each pair in the current ticker, collect the last 5 minutes:
 ```python
@@ -132,7 +132,7 @@ grabber.row('db', from_ts='oldest', to_ts='newest', overwrite=True)
 
 For each ETH pair, collect the last minute:
 ```python
-grabber.row('(ETH_+)', from_ts=plnxgrabber.ago_ts(60), overwrite=True)
+grabber.row(r'(ETH_+)', from_ts=plnxgrabber.ago_ts(60), overwrite=True)
 ```
 
 ***
