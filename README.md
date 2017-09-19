@@ -48,7 +48,7 @@ to_ts = arrow.Arrow(2017, 9, 1, 18, 0, 0).timestamp
 grabber.one('USDT_BTC', from_ts=from_ts, to_ts=to_ts)
 ```
 
-Grab the last hour of USDT_BTC:
+Grab the last hour:
 ```python
 grabber.one('USDT_BTC', from_ts=plnxgrabber.ts_ago(60*60))
 
