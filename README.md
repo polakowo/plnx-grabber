@@ -130,7 +130,7 @@ Recollect each collection:
 grabber.row('db', from_ts='oldest', to_ts='newest', overwrite=True)
 ```
 
-Collect the last minute of each ETH pair:
+For each ETH pair, collect the last minute:
 ```python
 grabber.row('(ETH_+)', from_ts=plnxgrabber.ago_ts(60), overwrite=True)
 ```
