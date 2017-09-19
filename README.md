@@ -27,6 +27,8 @@ grabber = plnxgrabber.Grabber(db)
 
 ## Usage
 
+***
+
 ### One pair
 
 To perform an action on a single pair, use `Grabber.one()`
@@ -57,6 +59,8 @@ grabber.one('USDT_BTC', from_ts=plnxgrabber.ts_ago(60*60))
 # or grabber.one('USDT_BTC', from_ts=plnxgrabber.ts_ago(60*60), to_ts=plnxgrabber.ts_now())
 ```
 
+***
+
 * Collections in MongoDB are named by their pairs
 * If no `overwrite` parameter passed, extend the collection either by newer or older records
 
@@ -73,6 +77,8 @@ grabber.one('USDT_BTC')
 
 # or grabber.one('USDT_BTC', from_ts=0, to_ts=plnxgrabber.now_ts())
 ```
+
+***
 
 * Use `oldest` to auto-fill the timestamp of the oldest record in the collection
 * Use `newest` to auto-fill the timestamp of the youngest record
@@ -94,12 +100,16 @@ grabber.one('USDT_BTC', from_ts='newest')
 
 ***Important**: Algorithm prevents building gaps in collections. If the history stored in collection and the one fetched from Poloniex build a gap in between, it gets filled automatically by extending from_ts or to_ts accordingly. Gaps are tested by running a consistency check on a trade id field.*
 
+***
+
 * If `overwrite` parameter passed, overwrite collection completely
 
 Recollect the currently stored pair:
 ```python
 grabber.one('USDT_BCH', from_ts='oldest', to_ts='newest', overwrite=True)
 ```
+
+***
 
 ### Row of pairs
 
@@ -113,6 +123,8 @@ grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH'], from_ts=from_ts, t
 ```
 
 ![UbIlti](https://i.makeagif.com/media/9-18-2017/UbIlti.gif)
+
+***
 
 * Pass 'ticker' instead of pair to perform an action on all pairs traded on Poloniex
 * Pass 'db' to perform an action on all pairs stored locally
@@ -132,6 +144,8 @@ For each ETH pair, collect the last minute:
 ```python
 grabber.row('(ETH_+)', from_ts=plnxgrabber.ago_ts(60), overwrite=True)
 ```
+
+***
 
 ### Ring of pairs
 
