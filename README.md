@@ -31,15 +31,15 @@ grabber = plnxgrabber.Grabber(db)
 
 #### 1) Collection empty yet
 
-- If `from_ts` is not passed, it gets filled by 0.
-- If `end_ts` is not passed, it gets filled by current time.
-
 Grab the entire history:
 ```python
 grabber.one('USDT_BCH')
 
 # or grabber.one('USDT_BCH', from_ts=0, to_ts=plnxgrabber.ts_now())
 ```
+
+- If `from_ts` is not passed, it gets filled by 0.
+- If `end_ts` is not passed, it gets filled by current time.
 
 Grab the history of *USDT_BTC* between 1/9/2017 12:00:00 to 1/9/2017 18:00:00:
 ```python
