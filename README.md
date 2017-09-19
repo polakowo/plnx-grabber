@@ -41,14 +41,14 @@ grabber.one('USDT_BCH')
 - If `from_ts` is not passed, it gets filled by 0.
 - If `end_ts` is not passed, it gets filled by current time.
 
-Grab the history of *USDT_BTC* between 1/9/2017 12:00:00 to 1/9/2017 18:00:00:
+Grab the history of USDT_BTC between 1/9/2017 12:00:00 to 1/9/2017 18:00:00:
 ```python
 from_ts = arrow.Arrow(2017, 9, 1, 12, 0, 0).timestamp
 to_ts = arrow.Arrow(2017, 9, 1, 18, 0, 0).timestamp
 grabber.one('USDT_BTC', from_ts=from_ts, to_ts=to_ts)
 ```
 
-Grab the last hour of *USDT_BTC*:
+Grab the last hour of USDT_BTC:
 ```python
 grabber.one('USDT_BTC', from_ts=plnxgrabber.ts_ago(60*60))
 
@@ -78,14 +78,14 @@ grabber.one('USDT_BTC')
 - Use `newest` to auto-fill the timestamp of the youngest record
 - If none of them is passed, extend collection automatically (from one or both ends)
 
-Extend the collection *USDT_BTC* by older records (backward):
+Extend the collection USDT_BTC by older records (backward):
 ```python
 grabber.one('USDT_BTC', to_ts='oldest')
 
 # or grabber.one('USDT_BTC', from_ts=0, to_ts='oldest')
 ```
 
-Extend the collection *USDT_BTC* by newer records (forward):
+Extend the collection USDT_BTC by newer records (forward):
 ```python
 grabber.one('USDT_BTC', from_ts='newest')
 
