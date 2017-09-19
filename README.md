@@ -58,7 +58,7 @@ grabber.one('USDT_BTC', from_ts=plnxgrabber.ts_ago(60*60))
 ```
 
 * Collections in MongoDB are named by their pairs
-* If no `overwrite` parameter passed, extend the collection either by newer or older records
+* If no `drop` parameter passed, extend the collection either by newer or older records
 
 Extend both collection's ends to completely fill a time period:
 ```python
@@ -94,11 +94,11 @@ grabber.one('USDT_BTC', from_ts='newest')
 
 ***Important**: Algorithm prevents building gaps in collections. If the history stored in collection and the one fetched from Poloniex build a gap in between, it gets filled automatically by extending from_ts or to_ts accordingly. Gaps are tested by running a consistency check on a trade id field.*
 
-* If `overwrite` parameter passed, overwrite collection completely
+* If `drop` parameter passed, drop collection completely
 
 Recollect the currently stored pair:
 ```python
-grabber.one('USDT_BCH', from_ts='oldest', to_ts='newest', overwrite=True)
+grabber.one('USDT_BCH', from_ts='oldest', to_ts='newest', drop=True)
 ```
 
 ***
@@ -111,7 +111,7 @@ For the following 4 pairs, collect the history from 1/9/2017 12:00:00 to 1/9/201
 ```python
 from_ts = arrow.Arrow(2017, 9, 1, 12, 0, 0).timestamp
 to_ts = arrow.Arrow(2017, 9, 1, 18, 0, 0).timestamp
-grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH'], from_ts=from_ts, to_ts=to_ts, overwrite=True)
+grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH'], from_ts=from_ts, to_ts=to_ts)
 ```
 
 ![UbIlti](https://i.makeagif.com/media/9-18-2017/UbIlti.gif)
@@ -122,17 +122,17 @@ grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH'], from_ts=from_ts, t
 
 For each pair in the current ticker, collect the last 5 minutes:
 ```python
-grabber.row('ticker', from_ts=plnxgrabber.ago_ts(5*60), overwrite=True)
+grabber.row('ticker', from_ts=plnxgrabber.ago_ts(5*60))
 ```
 
 Recollect each collection:
 ```python
-grabber.row('db', from_ts='oldest', to_ts='newest', overwrite=True)
+grabber.row('db', from_ts='oldest', to_ts='newest', drop=True)
 ```
 
 For each ETH pair, collect the last minute:
 ```python
-grabber.row(r'(ETH_+)', from_ts=plnxgrabber.ago_ts(60), overwrite=True)
+grabber.row(r'(ETH_+)', from_ts=plnxgrabber.ago_ts(60))
 ```
 
 ***

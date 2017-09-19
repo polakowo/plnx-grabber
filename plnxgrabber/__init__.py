@@ -21,6 +21,7 @@ from datetime import timedelta
 from enum import Enum
 from time import sleep
 from timeit import default_timer as timer
+import re
 
 import arrow
 import pandas as pd
@@ -321,7 +322,7 @@ class Grabber(object):
     def ticker_pairs(self):
         # Returns all pairs from ticker
         ticker = self.polo.returnTicker()
-        pairs = set(map(lambda x: str(x).newest(), ticker.keys()))
+        pairs = set(map(lambda x: str(x).upper(), ticker.keys()))
         return pairs
 
     def get_chunk(self, pair, start, end):
@@ -605,7 +606,7 @@ class Grabber(object):
         else:
             logger.debug("%s - Nothing returned - %.2fs", pair, timer() - t)
 
-    def one(self, pair, from_ts=None, to_ts=None, overwrite=False):
+    def one(self, pair, from_ts=None, to_ts=None, drop=False):
 
         """
         Grabs data for a pair based on passed params as well as history stored in the underlying collection
@@ -617,7 +618,7 @@ class Grabber(object):
         :param pair: pair of symbols
         :param from_ts: timestamp of the start point or command from ['oldest', 'newest']
         :param to_ts: timestamp of the end point or command from ['oldest', 'newest']
-        :param overwrite: delete underlying collection before insert
+        :param drop: delete underlying collection before insert
         :return: None
         """
 
@@ -641,7 +642,7 @@ class Grabber(object):
                     raise Exception("Unknown command '%s'"%to_ts)
 
             # Overwrite means drop completely
-            if overwrite:
+            if drop:
                 self.mongo.drop_col(pair)
 
         # If nothing is passed, fetch the widest tail and/or head possible
@@ -683,14 +684,14 @@ class Grabber(object):
                       from_ts=from_ts,
                       to_ts=to_ts)
 
-    def row(self, pairs, from_ts=None, to_ts=None, overwrite=False):
+    def row(self, pairs, from_ts=None, to_ts=None, drop=False):
         """
         Grabs data for each pair in a row
 
         :param pairs: list of pairs or string command from ['db', 'ticker']
         :param from_ts: timestamp of the start point or command from ['oldest', 'newest']
         :param to_ts: timestamp of the end point or command from ['oldest', 'newest']
-        :param overwrite: delete underlying collection before insert
+        :param drop: delete underlying collection before insert
         :return: None
         """
         if isinstance(pairs, str):
@@ -701,13 +702,14 @@ class Grabber(object):
             elif pairs == 'ticker':
                 pairs = self.ticker_pairs()
             else:
-                raise Exception("Unknown command '%s'"%pairs)
+                regex = re.compile(pairs)
+                pairs = list(filter(regex.search, self.ticker_pairs()))
         if len(pairs) == 0:
             raise Exception("List of pairs must be non-empty")
         for i, pair in enumerate(pairs):
             t = timer()
             logger.info("%s - Pair %d/%d", pair, i + 1, len(pairs))
-            self.one(pair, from_ts=from_ts, to_ts=to_ts, overwrite=overwrite)
+            self.one(pair, from_ts=from_ts, to_ts=to_ts, drop=drop)
             logger.info("%s - Finished - %.2fs", pair, timer() - t)
         self.mongo.db_short_info()
 
@@ -727,7 +729,8 @@ class Grabber(object):
             if pairs == 'db':
                 pairs = self.mongo.db_cols()
             else:
-                raise Exception("Unknown command '%s'"%pairs)
+                regex = re.compile(pairs)
+                pairs = list(filter(regex.search, self.ticker_pairs()))
         if len(pairs) == 0:
             raise Exception("List of pairs must be non-empty")
         logger.info("Ring - %d pairs - %s",
