@@ -7,9 +7,7 @@ Grabs trade history from Poloniex exchange and chunk-wise inserts into MongoDB
 pip install https://github.com/polakowo/plnx-grabber/archive/master.zip
 ```
 
-## Usage
-
-### Basic Setup
+## Setup
 
 ```python
 from pymongo import MongoClient
@@ -21,9 +19,11 @@ db = client['TradeHistory']
 grabber = plnxgrabber.Grabber(db)
 ```
 
+## How-To
+
 ### Single pair, single action
 
-#### Collection empty yet
+#### 1) Collection empty yet
 
 Fetch the entire history for a pair of symbols:
 ```python
@@ -34,8 +34,8 @@ grabber.one('USDT_BCH')
 
 Fetch the history of a period of time:
 ```python
-start_ts = arrow.Arrow(2017, 9, 1, 0, 0, 0).timestamp
-end_ts = arrow.Arrow(2017, 9, 1, 0, 5, 0).timestamp
+start_ts = arrow.Arrow(2017, 9, 1, 12, 0, 0).timestamp
+end_ts = arrow.Arrow(2017, 9, 1, 18, 0, 0).timestamp
 grabber.one('USDT_BTC', start_ts=start_ts, end_ts=end_ts)
 ```
 
@@ -46,7 +46,7 @@ grabber.one('USDT_BTC', start_ts=plnxgrabber.ts_ago(60*60))
 # or grabber.one('USDT_BTC', start_ts=plnxgrabber.ts_ago(60*60), end_ts=plnxgrabber.ts_now())
 ```
 
-#### Collection not empty
+#### 2) Collection not empty
 
 If no `overwrite` parameter passed, extend previously populated collection.
 
@@ -89,10 +89,14 @@ grabber.one('USDT_BCH', start_ts='lower', end_ts='upper', overwrite=True)
 
 ### Multiple pairs, single action
 
-For a row of pairs, collect the last 5 minutes:
+For each pair in a row, collect history of a period of time:
 ```python
-grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC'], start_ts=plnxgrabber.ts_ago(5*60))
+start_ts = arrow.Arrow(2017, 9, 1, 12, 0, 0).timestamp
+end_ts = arrow.Arrow(2017, 9, 1, 18, 0, 0).timestamp
+grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH'], start_ts=start_ts, end_ts=end_ts, overwrite=True)
 ```
+
+![UbIlti](https://i.makeagif.com/media/9-18-2017/UbIlti.gif)
 
 ### Multiple pairs, repeating action
 
