@@ -29,6 +29,8 @@ grabber = plnxgrabber.Grabber(db)
 
 ### One pair
 
+To perform an action on a single pair, use `Grabber.one()`
+
 #### 1) Collection empty yet
 
 Collect the entire history:
@@ -38,8 +40,8 @@ grabber.one('USDT_BCH')
 # or grabber.one('USDT_BCH', from_ts=0, to_ts=plnxgrabber.ts_now())
 ```
 
-- If `from_ts` is not passed, it gets filled by 0.
-- If `end_ts` is not passed, it gets filled by current time.
+* If `from_ts` is not passed, it gets filled by 0.
+* If `end_ts` is not passed, it gets filled by current time.
 
 Collect the history between 1/9/2017 12:00:00 to 1/9/2017 18:00:00:
 ```python
@@ -57,8 +59,8 @@ grabber.one('USDT_BTC', from_ts=plnxgrabber.ts_ago(60*60))
 
 #### 2) Collection not empty
 
-- Collections in MongoDB are named by their pairs
-- If no `overwrite` parameter passed, extend the collection either by newer or older records
+* Collections in MongoDB are named by their pairs
+* If no `overwrite` parameter passed, extend the collection either by newer or older records
 
 Extend both collection's ends to completely fill a time period:
 ```python
@@ -74,9 +76,9 @@ grabber.one('USDT_BTC')
 # or grabber.one('USDT_BTC', from_ts=0, to_ts=plnxgrabber.now_ts())
 ```
 
-- Use `oldest` to auto-fill the timestamp of the oldest record in the collection
-- Use `newest` to auto-fill the timestamp of the youngest record
-- If none of them is passed, extend collection automatically (from one or both ends)
+* Use `oldest` to auto-fill the timestamp of the oldest record in the collection
+* Use `newest` to auto-fill the timestamp of the youngest record
+* If none of them is passed, extend collection automatically (from one or both ends)
 
 Extend the collection by older records (backward):
 ```python
@@ -94,7 +96,7 @@ grabber.one('USDT_BTC', from_ts='newest')
 
 ***Important**: Algorithm prevents building gaps in collections. If the history stored in collection and the one fetched from Poloniex build a gap in between, it gets filled automatically by extending from_ts or to_ts accordingly. Gaps are tested by running a consistency check on a trade id field.*
 
-- If `overwrite` parameter passed, overwrite collection completely.
+* If `overwrite` parameter passed, overwrite collection completely.
 
 Recollect the currently stored pair:
 ```python
@@ -116,6 +118,7 @@ grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH'], from_ts=from_ts, t
 
 * Pass 'ticker' instead of pair to perform an action on all pairs traded on Poloniex
 * Pass 'db' to perform an action on all pairs stored locally
+* Or even use Regex
 
 For each pair in the current ticker, collect the last 5 minutes:
 ```python
@@ -125,6 +128,11 @@ grabber.row('ticker', from_ts=plnxgrabber.ago_ts(5*60), overwrite=True)
 Recollect each collection:
 ```python
 grabber.row('db', from_ts='oldest', to_ts='newest', overwrite=True)
+```
+
+Collect the last minute of each ETH pair:
+```python
+grabber.row('(ETH_+)', from_ts=plnxgrabber.ago_ts(60), overwrite=True)
 ```
 
 ### Ring of pairs
