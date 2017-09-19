@@ -92,7 +92,7 @@ grabber.one('USDT_BTC', from_ts='newest')
 # or grabber.one('USDT_BTC', from_ts='newest', to_ts=plnxgrabber.now_ts())
 ```
 
-***Important**: Algorithm prevents building gaps in collections. If the history stored in collection and the one fetched from Poloniex build a gap in between, it gets filled automatically by extending from_ts or to_ts accordingly. See comments for further details.*
+***Important**: Algorithm prevents building gaps in collections. If the history stored in collection and the one fetched from Poloniex build a gap in between, it gets filled automatically by extending from_ts or to_ts accordingly. Gaps are tested by running a consistency check on a trade id field.*
 
 - If `overwrite` parameter passed, overwrite collection completely.
 
@@ -151,4 +151,4 @@ Continue updating all collections:
 grabber.ring('db')
 ```
 
-***Important**: Ring only updates, and requires collections to be non-empty. If you want to collect history for a row of pairs and then update them every predefined amount of time, first execute a row and then a ring. See comments for further details.*
+***Important**: Ring only updates, and requires collections to be non-empty. If you want to collect history for a row of pairs and then update them every predefined amount of time, first execute a row and then a ring.*
