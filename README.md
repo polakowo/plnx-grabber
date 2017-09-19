@@ -25,13 +25,13 @@ db = client['TradeHistory']
 grabber = plnxgrabber.Grabber(db)
 ```
 
-## How-To
+## Usage
 
 ### One pair
 
 To perform an action on a single pair, use `Grabber.one()`
 
-#### 1) Collection empty
+##### Collection empty
 
 * If collection empty yet, simply record everything
 * `from_ts` and `end_ts` are either timestamps or strings (see below)
@@ -59,7 +59,7 @@ grabber.one('USDT_BTC', from_ts=plnxgrabber.ts_ago(60*60))
 # or grabber.one('USDT_BTC', from_ts=plnxgrabber.ts_ago(60*60), to_ts=plnxgrabber.ts_now())
 ```
 
-#### 2) Collection not empty
+##### Collection not empty
 
 * Collections in MongoDB are named by their pairs
 * If no `overwrite` parameter passed, extend the collection either by newer or older records
