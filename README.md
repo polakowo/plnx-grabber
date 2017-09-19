@@ -27,7 +27,7 @@ grabber = plnxgrabber.Grabber(db)
 
 ## How-To
 
-### Single pair, single action
+### One pair
 
 #### 1) Collection empty yet
 
@@ -101,7 +101,7 @@ Recollect the currently stored *USDT_BCH* pair:
 grabber.one('USDT_BCH', from_ts='oldest', to_ts='newest', overwrite=True)
 ```
 
-### Multiple pairs, single action
+### Row of pairs
 
 To perform an action on multiple pairs sequentially, use `Grabber.row()`
 
@@ -127,7 +127,7 @@ Recollect each pair:
 grabber.row('db', from_ts='oldest', to_ts='newest', overwrite=True)
 ```
 
-### Multiple pairs, repeating action
+### Ring of pairs
 
 To constantly grab the most recent records, use `Grabber.ring()`
 
