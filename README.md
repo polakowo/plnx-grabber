@@ -34,21 +34,21 @@ grabber = plnxgrabber.Grabber(db)
 - If `from_ts` is not passed, it gets filled by 0.
 - If `end_ts` is not passed, it gets filled by current time.
 
-Fetch the entire history:
+Grab the entire history:
 ```python
 grabber.one('USDT_BCH')
 
 # or grabber.one('USDT_BCH', from_ts=0, to_ts=plnxgrabber.ts_now())
 ```
 
-Fetch the history for a time period:
+Grab the history of *USDT_BTC* between 1/9/2017 12:00:00 to 1/9/2017 18:00:00:
 ```python
 from_ts = arrow.Arrow(2017, 9, 1, 12, 0, 0).timestamp
 to_ts = arrow.Arrow(2017, 9, 1, 18, 0, 0).timestamp
 grabber.one('USDT_BTC', from_ts=from_ts, to_ts=to_ts)
 ```
 
-Collect the last hour:
+Grab the last hour of *USDT_BTC*:
 ```python
 grabber.one('USDT_BTC', from_ts=plnxgrabber.ts_ago(60*60))
 
@@ -57,9 +57,10 @@ grabber.one('USDT_BTC', from_ts=plnxgrabber.ts_ago(60*60))
 
 #### 2) Collection not empty
 
-If no `overwrite` parameter passed, extend previously populated collection either by newer records (keep trade history up to date), or by older records (if any available).
+- Collections in MongoDB are named by their pairs
+- If no `overwrite` parameter passed, extend the collection either by newer or older records
 
-Extend both collection's end to completely fill a time period:
+Extend both collection's ends to completely fill a time period:
 ```python
 from_ts = arrow.Arrow(2017, 1, 1, 0, 0, 0).timestamp
 to_ts = arrow.Arrow(2017, 9, 1, 0, 0, 0).timestamp
@@ -73,27 +74,27 @@ grabber.one('USDT_BTC')
 # or grabber.one('USDT_BTC', from_ts=0, to_ts=plnxgrabber.now_ts())
 ```
 
-- Use `newest` to auto-fill the timestamp of the youngest record in the collection
 - Use `oldest` to auto-fill the timestamp of the oldest record in the collection
+- Use `newest` to auto-fill the timestamp of the youngest record
 - If none of them is passed, extend collection automatically (from one or both ends)
 
-Start from the newest record in the collection and extend toward now:
-```python
-grabber.one('USDT_BTC', from_ts='newest')
-
-# or grabber.one('USDT_BTC', from_ts='newest', to_ts=plnxgrabber.now_ts())
-```
-
-Start from the beginning of pair *USDT_BTC* and grab everything toward the oldest record in the collection:
+Extend the collection *USDT_BTC* by older records (backward):
 ```python
 grabber.one('USDT_BTC', to_ts='oldest')
 
 # or grabber.one('USDT_BTC', from_ts=0, to_ts='oldest')
 ```
 
+Extend the collection *USDT_BTC* by newer records (forward):
+```python
+grabber.one('USDT_BTC', from_ts='newest')
+
+# or grabber.one('USDT_BTC', from_ts='newest', to_ts=plnxgrabber.now_ts())
+```
+
 ***Important**: Algorithm prevents building gaps in collections. If the history stored in collection and the one fetched from Poloniex build a gap in between, it gets filled automatically by extending from_ts or to_ts accordingly. See comments for further details.*
 
-If `overwrite` parameter passed, overwrite collection completely.
+- If `overwrite` parameter passed, overwrite collection completely.
 
 Recollect the currently stored *USDT_BCH* pair:
 ```python
@@ -102,7 +103,9 @@ grabber.one('USDT_BCH', from_ts='oldest', to_ts='newest', overwrite=True)
 
 ### Multiple pairs, single action
 
-For each pair in a row, collect history of a period of time:
+To perform an action on multiple pairs sequentially, use `Grabber.row()`
+
+For the following 4 pairs, collect the history from 1/9/2017 12:00:00 to 1/9/2017 18:00:00:
 ```python
 from_ts = arrow.Arrow(2017, 9, 1, 12, 0, 0).timestamp
 to_ts = arrow.Arrow(2017, 9, 1, 18, 0, 0).timestamp
@@ -111,17 +114,22 @@ grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH'], from_ts=from_ts, t
 
 ![UbIlti](https://i.makeagif.com/media/9-18-2017/UbIlti.gif)
 
-For each pair from ticker returned by Poloniex, collect last 5 minutes:
+* Pass 'ticker' instead of pair to perform an action on all pairs traded on Poloniex
+* Pass 'db' to perform an action on all pairs stored locally
+
+For each pair from current ticker, collect the last 5 minutes:
 ```python
 grabber.row('ticker', from_ts=plnxgrabber.ago_ts(5*60), overwrite=True)
 ```
 
-Recollect each pair currently stored in db:
+Recollect each pair:
 ```python
-grabber.row('db', from_ts='lower', to_ts='upper', overwrite=True)
+grabber.row('db', from_ts='oldest', to_ts='newest', overwrite=True)
 ```
 
 ### Multiple pairs, repeating action
+
+To constantly grab the most recent records, use `Grabber.ring()`
 
 Keep updating a row of pairs every 60 sec:
 ```python
