@@ -152,3 +152,5 @@ grabber.ring('db')
 ```
 
 ***Important**: Ring only updates, and requires collections to be non-empty. If you want to collect history for a row of pairs and then update them every predefined amount of time, first execute a row and then a ring.*
+
+**See comments for further details.**
