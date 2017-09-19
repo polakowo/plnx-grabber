@@ -146,7 +146,7 @@ Update continuously:
 grabber.ring(["USDT_BTC", "USDT_ETH"])
 ```
 
-Continue updating all pairs currently stored in db:
+Continue updating all collections:
 ```python
 grabber.ring('db')
 ```
