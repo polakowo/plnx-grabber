@@ -31,9 +31,9 @@ grabber = plnxgrabber.Grabber(db)
 
 To perform an action on a single pair, use `Grabber.one()`
 
-#### 1) Collection empty yet
+#### 1) Collection empty
 
-* If collection empty, simply record everything
+* If collection empty yet, simply record everything
 * `from_ts` and `end_ts` are either timestamps or strings (see below)
 * If `from_ts` is not passed, it gets filled by 0
 * If `to_ts` is not passed, it gets filled by current time
