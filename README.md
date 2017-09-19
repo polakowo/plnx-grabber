@@ -31,7 +31,7 @@ grabber = plnxgrabber.Grabber(db)
 
 #### 1) Collection empty yet
 
-Grab the entire history:
+Collect the entire history:
 ```python
 grabber.one('USDT_BCH')
 
@@ -41,14 +41,14 @@ grabber.one('USDT_BCH')
 - If `from_ts` is not passed, it gets filled by 0.
 - If `end_ts` is not passed, it gets filled by current time.
 
-Grab the history between 1/9/2017 12:00:00 to 1/9/2017 18:00:00:
+Collect the history between 1/9/2017 12:00:00 to 1/9/2017 18:00:00:
 ```python
 from_ts = arrow.Arrow(2017, 9, 1, 12, 0, 0).timestamp
 to_ts = arrow.Arrow(2017, 9, 1, 18, 0, 0).timestamp
 grabber.one('USDT_BTC', from_ts=from_ts, to_ts=to_ts)
 ```
 
-Grab the last hour:
+Collect the last hour:
 ```python
 grabber.one('USDT_BTC', from_ts=plnxgrabber.ts_ago(60*60))
 
@@ -117,19 +117,19 @@ grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH'], from_ts=from_ts, t
 * Pass 'ticker' instead of pair to perform an action on all pairs traded on Poloniex
 * Pass 'db' to perform an action on all pairs stored locally
 
-For each pair from current ticker, collect the last 5 minutes:
+For each pair in the current ticker, collect the last 5 minutes:
 ```python
 grabber.row('ticker', from_ts=plnxgrabber.ago_ts(5*60), overwrite=True)
 ```
 
-Recollect each pair:
+Recollect each collection:
 ```python
 grabber.row('db', from_ts='oldest', to_ts='newest', overwrite=True)
 ```
 
 ### Ring of pairs
 
-To constantly grab the most recent records, use `Grabber.ring()`
+To constantly collect the most recent records, use `Grabber.ring()`
 
 Keep updating a row of pairs every 60 sec:
 ```python
