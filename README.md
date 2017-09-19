@@ -12,15 +12,13 @@ pip install https://github.com/polakowo/plnx-grabber/archive/master.zip
 ### Basic Setup
 
 ```python
-from poloniex import Poloniex
 from pymongo import MongoClient
 import arrow
 import plnxgrabber
 
-polo = Poloniex()
 client = MongoClient('localhost:27017')
 db = client['TradeHistory']
-grabber = plnxgrabber.Grabber(polo, db)
+grabber = plnxgrabber.Grabber(db)
 ```
 
 ### Single pair, single action

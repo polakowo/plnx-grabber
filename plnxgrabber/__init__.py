@@ -26,6 +26,7 @@ from timeit import default_timer as timer
 import arrow
 import pandas as pd
 import pymongo
+from poloniex import Poloniex
 
 # Logger
 ############################################################
@@ -173,28 +174,17 @@ def history_info_str(history_info):
         history_info['count'],
         readable_bytes(history_info['memory']))
 
+# MongoDB Wrapper
+############################################################
 
-class Grabber(object):
+class TradeHistMongo(object):
     """
-    Poloniex only returns max of 50,000 records at a time, meaning we have to coordinate download and
-    save of many chunks of data. Moreover, there is no fixed amount of records per unit of time, which
-    requires a synchronization of chunks by trade id.
-
-    For example: If we would like to go one month back in time, Poloniex could have returned us only
-    the most recent week. Because Polo returns only 50,000 of the latest records (not the oldest ones),
-    we can synchronize chunks only by going backwards. Otherwise, if we decided to go forwards in time,
-    we couldn't know which time interval to choose to fill all records in order to synchronize with
-    previous chunk.
+    Wrapper around pymongo for dealing with trade history information
     """
 
-    def __init__(self, polo, db):
-        # Set Poloniex API wrapper
-        self.polo = polo
+    def __init__(self, db):
         # Set running MongoDB instance
         self.db = db
-
-    # Database
-    ############################################################
 
     def db_short_info(self):
         # Aggregates basic info on current state of db
@@ -208,6 +198,9 @@ class Grabber(object):
                              self.db.collection_names()]))
 
     # Collections
+
+    def db_cols(self):
+        return self.db.collection_names()
 
     def create_col(self, cname):
         # Create new collection and index on timestamp field
@@ -302,18 +295,37 @@ class Grabber(object):
         # Return documents which match query
         return self.db[cname].find(query)
 
-    # Poloniex
-    ############################################################
+# Grabber
+############################################################
 
-    def return_symbols(self):
-        ticker = self.polo.returnTicker()
-        pairs = set(map(lambda x: str(x).upper(), ticker.keys()))
-        pairs_grouped = defaultdict(list)
-        for pair in pairs:
-            pairs_grouped[pair.split('_')[0]].append(pair.split('_')[1])
-        return pairs_grouped
+class Grabber(object):
+    """
+    Poloniex only returns max of 50,000 records at a time, meaning we have to coordinate download and
+    save of many chunks of data. Moreover, there is no fixed amount of records per unit of time, which
+    requires a synchronization of chunks by trade id.
 
-    def return_trade_history(self, pair, start, end):
+    For example: If we would like to go one month back in time, Poloniex could have returned us only
+    the most recent week. Because Polo returns only 50,000 of the latest records (not the oldest ones),
+    we can synchronize chunks only by going backwards. Otherwise, if we decided to go forwards in time,
+    we couldn't know which time interval to choose to fill all records in order to synchronize with
+    previous chunk.
+    """
+
+    def __init__(self, db):
+        # pymongo Wrapper
+        self.mongo = TradeHistMongo(db)
+        # Poloniex
+        self.polo = Poloniex()
+
+    def get_chunk(self, pair, start, end):
+        """
+        Returns a chunk of trade history (max 50,000 of the most recent records) of a period of time
+
+        :param pair: pair of symbols
+        :param start: timestamp of start
+        :param end: timestamp of end
+        :return: df
+        """
         try:
             history = self.polo.marketTradeHist(pair, start=start, end=end)
             history_df = pd.DataFrame(history)
@@ -332,9 +344,6 @@ class Grabber(object):
             return history_df
         except Exception as e:
             return pd.DataFrame()
-
-    # Grabber
-    ############################################################
 
     def grab(self, pair, start_ts=None, start_id=None, end_ts=None, end_id=None):
         """
@@ -384,12 +393,14 @@ class Grabber(object):
         :param end_id: id of end point
         :return: None
         """
-        if self.col_non_empty(pair):
-            logger.debug("%s - Collection - %s", pair, history_info_str(self.col_history_info(pair)))
+        if self.mongo.col_non_empty(pair):
+            logger.debug("%s - Collection - %s", pair, history_info_str(self.mongo.col_history_info(pair)))
         else:
             logger.debug("%s - Collection - Empty", pair)
-            # Create new collection
-            self.create_col(pair)
+
+            # Create new collection only if none exists
+            if pair not in self.mongo.db_cols():
+                self.mongo.create_col(pair)
         logger.debug("%s - Collection - Achieving { %s%s, %s%s, %s }",
                      pair,
                      ts_to_str(start_ts),
@@ -434,7 +445,7 @@ class Grabber(object):
         #   1) empty result
         #   2) reached the start date/id
         #   3) exception
-        while (True):
+        while True:
             t2 = timer()
 
             # Receive and process chunk of data
@@ -446,7 +457,7 @@ class Grabber(object):
                          ts_to_str(window['end_ts']),
                          td_format(ts_delta(window['start_ts'], window['end_ts'])))
 
-            df = self.return_trade_history(pair, window['start_ts'], window['end_ts'])
+            df = self.get_chunk(pair, window['start_ts'], window['end_ts'])
             if df.empty:
                 logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
                 break
@@ -519,7 +530,7 @@ class Grabber(object):
                                          pair, history_info_str(df_history_info(df)), timer() - t2)
                             logger.debug("%s - Poloniex - Start id { %d } reached - aborting", pair, start_id)
                             if verify_history_df(df):
-                                self.insert_docs(pair, df)
+                                self.mongo.insert_docs(pair, df)
                                 anything_recorded = True
                         break  # escape anyway
                 # or at least the approx. date
@@ -532,7 +543,7 @@ class Grabber(object):
                                      pair, history_info_str(df_history_info(df)), timer() - t2)
                         logger.debug("%s - Poloniex - Start date { %s } reached - aborting", pair, ts_to_str(start_ts))
                         if verify_history_df(df):
-                            self.insert_docs(pair, df)
+                            self.mongo.insert_docs(pair, df)
                             anything_recorded = True
                     break
 
@@ -556,7 +567,7 @@ class Grabber(object):
                 # Break on last stored df if the newest chunk is broken
                 if not verify_history_df(df):
                     break
-                self.insert_docs(pair, df)
+                self.mongo.insert_docs(pair, df)
                 anything_recorded = True
 
                 # Continue with next chunk
@@ -571,8 +582,8 @@ class Grabber(object):
         # ..................................
 
         if anything_recorded:
-            if self.verify_history_col(pair):
-                logger.debug("%s - Collection - %s - %.2fs", pair, history_info_str(self.col_history_info(pair)),
+            if self.mongo.verify_history_col(pair):
+                logger.debug("%s - Collection - %s - %.2fs", pair, history_info_str(self.mongo.col_history_info(pair)),
                              timer() - t)
             else:
                 raise Exception("%s - Consistency broken - fix required" % pair)
@@ -596,8 +607,8 @@ class Grabber(object):
         """
 
         # Fill timestamps of collection's bounds
-        if self.col_non_empty(pair):
-            history_info = self.col_history_info(pair)
+        if self.mongo.col_non_empty(pair):
+            history_info = self.mongo.col_history_info(pair)
 
             start_ts = history_info['start_ts'] if start_ts == 'lower' else start_ts
             start_ts = history_info['end_ts'] if start_ts == 'upper' else start_ts
@@ -606,7 +617,7 @@ class Grabber(object):
 
             # Overwrite means drop completely
             if overwrite:
-                self.drop_col(pair)
+                self.mongo.drop_col(pair)
 
         # If nothing is passed, fetch the widest tail and/or head possible
         if start_ts is None:
@@ -614,8 +625,8 @@ class Grabber(object):
         if end_ts is None:
             end_ts = now_ts()
 
-        if self.col_non_empty(pair):
-            history_info = self.col_history_info(pair)
+        if self.mongo.col_non_empty(pair):
+            history_info = self.mongo.col_history_info(pair)
 
             # Period must be non-zero
             if start_ts >= end_ts:
@@ -662,7 +673,7 @@ class Grabber(object):
             logger.info("%s - %d/%d", pair, i + 1, len(pairs))
             self.one(pair, start_ts=start_ts, end_ts=end_ts, overwrite=overwrite)
             logger.info("%s - Finished - %.2fs", pair, timer() - t)
-        self.db_short_info()
+        self.mongo.db_short_info()
 
     def ring(self, pairs, every=None, iterations=None):
         """
@@ -678,7 +689,7 @@ class Grabber(object):
         logger.info("Ring - %d pairs - %s",
                     len(pairs), "Continuously" if every is None else td_format(timedelta(seconds=every)))
         iteration = 1
-        while (True):
+        while True:
             logger.info("Row - Iteration %d", iteration)
             # Collect head every time interval
             self.row(pairs, end_ts=now_ts())
@@ -687,4 +698,4 @@ class Grabber(object):
                 break
             if every is not None:
                 sleep(every)
-        self.db_long_info()
+        self.mongo.db_long_info()
