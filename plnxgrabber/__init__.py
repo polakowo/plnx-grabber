@@ -17,7 +17,6 @@
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-from collections import defaultdict
 from datetime import timedelta
 from enum import Enum
 from time import sleep
@@ -174,6 +173,7 @@ def history_info_str(history_info):
         history_info['count'],
         readable_bytes(history_info['memory']))
 
+
 # MongoDB Wrapper
 ############################################################
 
@@ -294,6 +294,7 @@ class TradeHistMongo(object):
     def find_docs(self, cname, query=dict):
         # Return documents which match query
         return self.db[cname].find(query)
+
 
 # Grabber
 ############################################################
@@ -459,8 +460,17 @@ class Grabber(object):
 
             df = self.get_chunk(pair, window['start_ts'], window['end_ts'])
             if df.empty:
-                logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
-                break
+                if anything_recorded or window['start_ts'] == start_ts:
+                    # If we finished (either by reaching start or receiving no records) -> terminate
+                    logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
+                    break
+                else:
+                    # If Poloniex temporary suspended trading for a pair -> look for older records
+                    logger.debug("%s - Poloniex - Nothing returned - continuing", pair)
+                    window['end_ts'] = window['start_ts']
+                    window['start_ts'] = max(window['start_ts'] - max_window_size, start_ts)
+                    continue
+
 
             # If chunk contains end id (upper bound) -> start recording
             # .........................................................
