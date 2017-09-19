@@ -33,15 +33,17 @@ To perform an action on a single pair, use `Grabber.one()`
 
 #### 1) Collection empty yet
 
+* If collection empty, program will simply record everything
+* `from_ts` and `end_ts` are either timestamps or strings (see below)
+* If `from_ts` is not passed, it gets filled by 0
+* If `to_ts` is not passed, it gets filled by current time
+
 Collect the entire history:
 ```python
 grabber.one('USDT_BCH')
 
 # or grabber.one('USDT_BCH', from_ts=0, to_ts=plnxgrabber.ts_now())
 ```
-
-* If `from_ts` is not passed, it gets filled by 0.
-* If `end_ts` is not passed, it gets filled by current time.
 
 Collect the history between 1/9/2017 12:00:00 to 1/9/2017 18:00:00:
 ```python
@@ -96,7 +98,7 @@ grabber.one('USDT_BTC', from_ts='newest')
 
 ***Important**: Algorithm prevents building gaps in collections. If the history stored in collection and the one fetched from Poloniex build a gap in between, it gets filled automatically by extending from_ts or to_ts accordingly. Gaps are tested by running a consistency check on a trade id field.*
 
-* If `overwrite` parameter passed, overwrite collection completely.
+* If `overwrite` parameter passed, overwrite collection completely
 
 Recollect the currently stored pair:
 ```python
