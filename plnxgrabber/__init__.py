@@ -19,7 +19,6 @@
 import logging
 import math
 import re
-from datetime import timedelta
 from enum import Enum
 from time import sleep
 from timeit import default_timer as timer
@@ -334,9 +333,9 @@ class Grabber(object):
         cname_history_info = {cname: self.mongo.col_history_info(cname) for cname in self.mongo.col_list()}
         for pair, history_info in cname_history_info.items():
             # Get latest id
-            df = self.get_chunk(pair, now_ts() - 300, now_ts())
+            df = self.get_chunk(pair, now_ts() - 15*60, now_ts())
             if df.empty:
-                logger.info("%s - No information available")
+                logger.info("%s - No information available", pair)
                 continue
             max_id = df_history_info(df)['to_id']
 
@@ -345,8 +344,9 @@ class Grabber(object):
             below_rate = history_info['from_id'] / max_id
             taken_rate = (history_info['to_id'] - history_info['from_id']) / max_id
             above_rate = (max_id - history_info['to_id']) / max_id
-            progress = '_' * math.floor(below_rate * steps) + 'x' * math.ceil(taken_rate * steps) + '_' * math.floor(
-                above_rate * steps)
+            progress = '_' * math.floor(below_rate * steps) + \
+                       'x' * (steps - math.floor(below_rate * steps) - math.floor(above_rate * steps)) + \
+                       '_' * math.floor(above_rate * steps)
 
             logger.info("%s - 1 [ %s ] %d - %.1f/100.0%% - %s/%s",
                         pair,
@@ -689,6 +689,8 @@ class Grabber(object):
         :param drop: delete underlying collection before insert
         :return: None
         """
+        t = timer()
+        logger.info("%s - ...", pair)
 
         # Fill timestamps of collection's bounds
         if self.mongo.col_non_empty(pair):
@@ -752,6 +754,8 @@ class Grabber(object):
                       from_ts=from_ts,
                       to_ts=to_ts)
 
+        logger.info("%s - Finished - %.2fs", pair, timer() - t)
+
     def row(self, pairs, from_ts=None, to_ts=None, drop=False):
         """
         Grabs data for each pair in a row
@@ -774,13 +778,11 @@ class Grabber(object):
                 pairs = list(filter(regex.search, self.ticker_pairs()))
         if len(pairs) == 0:
             raise Exception("List of pairs must be non-empty")
-        for i, pair in enumerate(pairs):
+        for pair in pairs:
             t = timer()
-            logger.info("%s - Pair %d/%d", pair, i + 1, len(pairs))
             self.one(pair, from_ts=from_ts, to_ts=to_ts, drop=drop)
-            logger.info("%s - Finished - %.2fs", pair, timer() - t)
 
-    def ring(self, pairs, every=None, iterations=None):
+    def ring(self, pairs, every=None):
         """
         Grabs the most recent data for a row of pairs on repeat
 
@@ -788,7 +790,6 @@ class Grabber(object):
 
         :param pairs: list of pairs or 'db' command
         :param every: pause between iterations
-        :param iterations: maximum number of times a grabber row is executed
         :return: None
         """
         if isinstance(pairs, str):
@@ -800,15 +801,8 @@ class Grabber(object):
                 pairs = list(filter(regex.search, self.ticker_pairs()))
         if len(pairs) == 0:
             raise Exception("List of pairs must be non-empty")
-        logger.info("Ring - %d pairs - %s",
-                    len(pairs), "continuously" if every is None else 'every %s' % td_format(timedelta(seconds=every)))
-        iteration = 1
         while True:
-            logger.info("Row - Iteration %d", iteration)
             # Collect head every time interval
             self.row(pairs, to_ts=now_ts())
-            iteration += 1
-            if iterations is not None and iteration > iterations:
-                break
             if every is not None:
                 sleep(every)

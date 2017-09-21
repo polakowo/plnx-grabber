@@ -29,7 +29,6 @@ def main():
     try:
         # Collect every USDT_* pair starting from September 1st
         grabber.row('(USDT_+)', from_ts=Arrow(2017, 9, 1, 0, 0, 0).timestamp, drop=True)
-        pass
     except Exception as e:
         logging.exception(e)
     # Show advanced information on stored pairs
