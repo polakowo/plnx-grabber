@@ -29,9 +29,9 @@ grabber = plnxgrabber.Grabber(db)
 
 ### General
 
-Get information on pairs' history available on Poloniex:
+Get information on history available on Poloniex:
 ```python
-grabber.remote_info(['USDT_BTC', 'USDT_ETH', 'USDT_LTC'])
+grabber.remote_info(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH])
 ```
 
 ![alt text](/img/remote_info.png)
