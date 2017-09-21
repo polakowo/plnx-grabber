@@ -54,11 +54,6 @@ grabber.progress()
 
 To collect trade history for a single pair, use `Grabber.one()`
 
-* If collection empty yet, simply record everything
-* `from_ts` and `end_ts` are either timestamps or strings (see below)
-* If `from_ts` is not passed, it gets filled by 0
-* If `to_ts` is not passed, it gets filled by current time
-
 Collect the entire history:
 ```python
 grabber.one('USDT_BCH')
@@ -80,46 +75,25 @@ grabber.one('USDT_BTC', from_ts=plnxgrabber.ts_ago(60*60))
 # or grabber.one('USDT_BTC', from_ts=plnxgrabber.ts_ago(60*60), to_ts=plnxgrabber.ts_now())
 ```
 
-* Collections in MongoDB are named by their pairs
-* If no `drop` parameter passed, extend the collection either by newer or older records
-
-Extend both collection's ends to completely fill a time period:
-```python
-from_ts = arrow.Arrow(2017, 1, 1, 0, 0, 0).timestamp
-to_ts = arrow.Arrow(2017, 9, 1, 0, 0, 0).timestamp
-grabber.one('USDT_BTC', from_ts=from_ts, to_ts=to_ts)
-```
-
-Complete collection from both its ends:
-```python
-grabber.one('USDT_BTC')
-
-# or grabber.one('USDT_BTC', from_ts=0, to_ts=plnxgrabber.now_ts())
-```
-
+* If collection not empty, it gets extended
 * Use `oldest` to auto-fill the timestamp of the oldest record in the collection
 * Use `newest` to auto-fill the timestamp of the youngest record
-* If none of them is passed, extend collection automatically (from one or both ends)
 
-Extend the collection by older records (backward):
+Collect everything below the oldest record in the collection (backward):
 ```python
 grabber.one('USDT_BTC', to_ts='oldest')
 
 # or grabber.one('USDT_BTC', from_ts=0, to_ts='oldest')
 ```
 
-Extend the collection by newer records (forward):
+Collect everything above the newest record in the collection (forward):
 ```python
 grabber.one('USDT_BTC', from_ts='newest')
 
 # or grabber.one('USDT_BTC', from_ts='newest', to_ts=plnxgrabber.now_ts())
 ```
 
-***Important**: Algorithm prevents building gaps in collections. If the history stored in collection and the one fetched from Poloniex build a gap in between, it gets filled automatically by extending from_ts or to_ts accordingly. Gaps are tested by running a consistency check on a trade id field.*
-
-* If `drop` parameter passed, drop collection completely
-
-Recollect the currently stored pair:
+Drop currently stored pair and recollect:
 ```python
 grabber.one('USDT_BCH', from_ts='oldest', to_ts='newest', drop=True)
 ```
@@ -183,7 +157,5 @@ Continue updating all collections:
 ```python
 grabber.ring('db')
 ```
-
-***Important**: Ring only updates, and requires collections to be non-empty. If you want to collect history for a row of pairs and then update them every predefined amount of time, first execute a row and then a ring.*
 
 **See comments for further details.**
