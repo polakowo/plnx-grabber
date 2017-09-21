@@ -1,5 +1,5 @@
 # plnx-grabber
-Transfers trade history of any pair and any time period from Poloniex exchange into the local MongoDB database
+Transfers trade history of any pair and time period from Poloniex exchange into the local MongoDB database
 
 ## Installation
 
