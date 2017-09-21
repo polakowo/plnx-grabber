@@ -189,9 +189,12 @@ class TradeHistMongo(object):
 
     def db_short_info(self):
         # Aggregates basic info on current state of db
-        logger.info("Database '{0}' - {1} collections - {2:,} documents"
-                    .format(self.db.name, len(self.db.collection_names()),
-                            sum(self.db[cname].count() for cname in self.db.collection_names())))
+        cname_history_info = {cname: self.col_history_info(cname) for cname in self.db.collection_names()}
+        logger.info("Database '{0}' - {1} collections - {2:,} documents - {3}"
+                    .format(self.db.name,
+                            len(cname_history_info),
+                            sum(history_info['count'] for history_info in cname_history_info.values()),
+                            readable_bytes(sum(history_info['memory'] for history_info in cname_history_info.values()))))
 
     def db_long_info(self):
         # Shows detailed descriptions of each collection
@@ -711,7 +714,6 @@ class Grabber(object):
             logger.info("%s - Pair %d/%d", pair, i + 1, len(pairs))
             self.one(pair, from_ts=from_ts, to_ts=to_ts, drop=drop)
             logger.info("%s - Finished - %.2fs", pair, timer() - t)
-        self.mongo.db_short_info()
 
     def ring(self, pairs, every=None, iterations=None):
         """
@@ -745,4 +747,3 @@ class Grabber(object):
                 break
             if every is not None:
                 sleep(every)
-        self.mongo.db_long_info()
