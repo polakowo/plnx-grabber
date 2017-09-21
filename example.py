@@ -1,10 +1,7 @@
 import logging
-from logging.handlers import RotatingFileHandler
-from logging import handlers
-import sys
 
-from pymongo import MongoClient
 from arrow import Arrow
+from pymongo import MongoClient
 
 import plnxgrabber
 
@@ -37,6 +34,7 @@ def main():
         logging.exception(e)
     # Show advanced information on stored pairs
     grabber.db_info()
+
 
 if __name__ == '__main__':
     main()

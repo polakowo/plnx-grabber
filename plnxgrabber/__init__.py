@@ -17,13 +17,12 @@
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+import math
+import re
 from datetime import timedelta
 from enum import Enum
 from time import sleep
 from timeit import default_timer as timer
-import re
-from pympler import asizeof
-import math
 
 import arrow
 import pandas as pd
@@ -196,7 +195,8 @@ class TradeHistMongo(object):
                     .format(self.db.name,
                             len(cname_history_info),
                             sum(history_info['count'] for history_info in cname_history_info.values()),
-                            readable_bytes(sum(history_info['memory'] for history_info in cname_history_info.values()))))
+                            readable_bytes(
+                                sum(history_info['memory'] for history_info in cname_history_info.values()))))
         # Shows detailed descriptions of each collection
         for cname, history_info in cname_history_info.items():
             logger.info("%s - %s", cname, history_info_str(history_info))
@@ -334,7 +334,7 @@ class Grabber(object):
         cname_history_info = {cname: self.mongo.col_history_info(cname) for cname in self.mongo.col_list()}
         for pair, history_info in cname_history_info.items():
             # Get latest id
-            df = self.get_chunk(pair, now_ts()-300, now_ts())
+            df = self.get_chunk(pair, now_ts() - 300, now_ts())
             if df.empty:
                 logger.info("%s - No information available")
                 continue
@@ -342,18 +342,19 @@ class Grabber(object):
 
             # Progress bar
             steps = 50
-            below_rate = history_info['from_id']/max_id
-            taken_rate = (history_info['to_id']-history_info['from_id'])/max_id
-            above_rate = (max_id-history_info['to_id'])/max_id
-            progress = '_'*math.floor(below_rate*steps)+'x'*math.ceil(taken_rate*steps)+'_'*math.floor(above_rate*steps)
+            below_rate = history_info['from_id'] / max_id
+            taken_rate = (history_info['to_id'] - history_info['from_id']) / max_id
+            above_rate = (max_id - history_info['to_id']) / max_id
+            progress = '_' * math.floor(below_rate * steps) + 'x' * math.ceil(taken_rate * steps) + '_' * math.floor(
+                above_rate * steps)
 
             logger.info("%s - 1 [ %s ] %d - %.1f/100.0%% - %s/%s",
                         pair,
                         progress,
                         history_info['to_id'],
-                        taken_rate*100,
+                        taken_rate * 100,
                         readable_bytes(history_info['memory']),
-                        readable_bytes(1/taken_rate*history_info['memory']))
+                        readable_bytes(1 / taken_rate * history_info['memory']))
 
     def remote_info(self, pairs):
         """
@@ -364,7 +365,7 @@ class Grabber(object):
             from_ts = chart_data[0]['date']
             to_ts = chart_data[-1]['date']
 
-            df = self.get_chunk(pair, now_ts()-300, now_ts())
+            df = self.get_chunk(pair, now_ts() - 300, now_ts())
             if df.empty:
                 logger.info("%s - No information available")
                 continue
@@ -376,14 +377,13 @@ class Grabber(object):
                         ts_to_str(to_ts, fmt='ddd DD/MM/YYYY'),
                         td_format(ts_delta(from_ts, to_ts)),
                         max_id,
-                        readable_bytes(round(df_memory(df)*max_id/len(df.index))))
+                        readable_bytes(round(df_memory(df) * max_id / len(df.index))))
 
     def db_info(self):
         """
         Wrapper for mongo.db_info
         """
         self.mongo.db_info()
-
 
     def ticker_pairs(self):
         """
@@ -700,14 +700,14 @@ class Grabber(object):
                 elif from_ts == 'newest':
                     from_ts = history_info['to_ts']
                 else:
-                    raise Exception("Unknown command '%s'"%from_ts)
+                    raise Exception("Unknown command '%s'" % from_ts)
             if isinstance(to_ts, str):
                 if to_ts == 'oldest':
                     to_ts = history_info['from_ts']
                 elif to_ts == 'newest':
                     to_ts = history_info['to_ts']
                 else:
-                    raise Exception("Unknown command '%s'"%to_ts)
+                    raise Exception("Unknown command '%s'" % to_ts)
 
             # Overwrite means drop completely
             if drop:
@@ -745,7 +745,7 @@ class Grabber(object):
         else:
             # There is no newest or oldest bounds of empty collection
             if isinstance(from_ts, str) or isinstance(to_ts, str):
-                raise Exception("%s - Collection empty - cannot auto-fill timestamps"%pair)
+                raise Exception("%s - Collection empty - cannot auto-fill timestamps" % pair)
 
             logger.debug("%s - Grabbing full", pair)
             self.grab(pair,
@@ -801,7 +801,7 @@ class Grabber(object):
         if len(pairs) == 0:
             raise Exception("List of pairs must be non-empty")
         logger.info("Ring - %d pairs - %s",
-                    len(pairs), "continuously" if every is None else 'every %s'%td_format(timedelta(seconds=every)))
+                    len(pairs), "continuously" if every is None else 'every %s' % td_format(timedelta(seconds=every)))
         iteration = 1
         while True:
             logger.info("Row - Iteration %d", iteration)
