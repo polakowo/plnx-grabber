@@ -34,15 +34,21 @@ Get information on pairs available on Poloniex:
 grabber.remote_info(['USDT_BTC', 'USDT_ETH', 'USDT_LTC'])
 ```
 
+![alt text](/img/remote_info.png)
+
 Get information on pairs stored locally:
 ```python
 grabber.db_info()
 ```
 
+![alt text](/img/db_info.png)
+
 Get progress of currently stored history relative to overall available on Poloniex:
 ```python
 grabber.progress()
 ```
+
+![alt text](/img/progress.png)
 
 ### Grab one pair
 
