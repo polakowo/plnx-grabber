@@ -22,6 +22,8 @@ from enum import Enum
 from time import sleep
 from timeit import default_timer as timer
 import re
+from pympler import asizeof
+import math
 
 import arrow
 import pandas as pd
@@ -108,7 +110,7 @@ class TimePeriod(Enum):
 ############################################################
 
 def df_memory(df):
-    return df.memory_usage(index=True).sum()
+    return df.memory_usage(index=True, deep=True).sum()
 
 
 def index_by_name(df, name):
@@ -187,7 +189,7 @@ class TradeHistMongo(object):
         # Set running MongoDB instance
         self.db = db
 
-    def db_short_info(self):
+    def db_info(self):
         # Aggregates basic info on current state of db
         cname_history_info = {cname: self.col_history_info(cname) for cname in self.db.collection_names()}
         logger.info("Database '{0}' - {1} collections - {2:,} documents - {3}"
@@ -195,15 +197,18 @@ class TradeHistMongo(object):
                             len(cname_history_info),
                             sum(history_info['count'] for history_info in cname_history_info.values()),
                             readable_bytes(sum(history_info['memory'] for history_info in cname_history_info.values()))))
-
-    def db_long_info(self):
         # Shows detailed descriptions of each collection
-        logger.info(''.join(["\n{0} - {1}".format(cname, history_info_str(self.col_history_info(cname))) for cname in
-                             self.db.collection_names()]))
+        for cname, history_info in cname_history_info.items():
+            logger.info("%s - %s", cname, history_info_str(history_info))
+
+    def clear_db(self):
+        # Drop all collections
+        for cname in self.col_list():
+            self.drop_col(cname)
 
     # Collections
 
-    def db_cols(self):
+    def col_list(self):
         return self.db.collection_names()
 
     def create_col(self, cname):
@@ -289,15 +294,15 @@ class TradeHistMongo(object):
         logger.debug("%s - Collection - Modified %d, upserted %d documents - %.2fs", cname, n_modified, n_upserted,
                      timer() - t)
 
-    def delete_docs(self, cname, query=dict):
+    def delete_docs(self, cname, query={}):
         # Delete documents
         t = timer()
         result = self.db[cname].delete_many(query)
         logger.debug("%s - Collection - Deleted %d documents - %.2fs", cname, result.deleted_count, timer() - t)
 
-    def find_docs(self, cname, query=dict):
+    def find_docs(self, cname, query={}):
         # Return documents which match query
-        return self.db[cname].find(query)
+        return pd.DataFrame(list(self.db[cname].find(query))).set_index(['_id', 'ts'], drop=True)
 
 
 # Grabber
@@ -322,8 +327,68 @@ class Grabber(object):
         # Poloniex
         self.polo = Poloniex()
 
+    def progress(self):
+        """
+        Shows how much history was grabbed so far in relation to overall available on Poloniex
+        """
+        cname_history_info = {cname: self.mongo.col_history_info(cname) for cname in self.mongo.col_list()}
+        for pair, history_info in cname_history_info.items():
+            # Get latest id
+            df = self.get_chunk(pair, now_ts()-300, now_ts())
+            if df.empty:
+                logger.info("%s - No information available")
+                continue
+            max_id = df_history_info(df)['to_id']
+
+            # Progress bar
+            steps = 50
+            below_rate = history_info['from_id']/max_id
+            taken_rate = (history_info['to_id']-history_info['from_id'])/max_id
+            above_rate = (max_id-history_info['to_id'])/max_id
+            progress = '_'*math.floor(below_rate*steps)+'x'*math.ceil(taken_rate*steps)+'_'*math.floor(above_rate*steps)
+
+            logger.info("%s - 1 [ %s ] %d - %.1f/100.0%% - %s/%s",
+                        pair,
+                        progress,
+                        history_info['to_id'],
+                        taken_rate*100,
+                        readable_bytes(history_info['memory']),
+                        readable_bytes(1/taken_rate*history_info['memory']))
+
+    def remote_info(self, pairs):
+        """
+        Detailed info on pairs listed on Poloniex
+        """
+        for pair in pairs:
+            chart_data = Poloniex().returnChartData(pair, period=86400, start=1, end=now_ts())
+            from_ts = chart_data[0]['date']
+            to_ts = chart_data[-1]['date']
+
+            df = self.get_chunk(pair, now_ts()-300, now_ts())
+            if df.empty:
+                logger.info("%s - No information available")
+                continue
+            max_id = df_history_info(df)['to_id']
+
+            logger.info("%s - %s - %s, %s, %d trades, est. %s",
+                        pair,
+                        ts_to_str(from_ts, fmt='ddd DD/MM/YYYY'),
+                        ts_to_str(to_ts, fmt='ddd DD/MM/YYYY'),
+                        td_format(ts_delta(from_ts, to_ts)),
+                        max_id,
+                        readable_bytes(round(df_memory(df)*max_id/len(df.index))))
+
+    def db_info(self):
+        """
+        Wrapper for mongo.db_info
+        """
+        self.mongo.db_info()
+
+
     def ticker_pairs(self):
-        # Returns all pairs from ticker
+        """
+        Returns all pairs from ticker
+        """
         ticker = self.polo.returnTicker()
         pairs = set(map(lambda x: str(x).upper(), ticker.keys()))
         return pairs
@@ -410,7 +475,7 @@ class Grabber(object):
             logger.debug("%s - Collection - Empty", pair)
 
             # Create new collection only if none exists
-            if pair not in self.mongo.db_cols():
+            if pair not in self.mongo.col_list():
                 self.mongo.create_col(pair)
         logger.debug("%s - Collection - Achieving { %s%s, %s%s, %s }",
                      pair,
@@ -700,7 +765,7 @@ class Grabber(object):
         if isinstance(pairs, str):
             # All pairs in db
             if pairs == 'db':
-                pairs = self.mongo.db_cols()
+                pairs = self.mongo.col_list()
             # All pairs in ticker
             elif pairs == 'ticker':
                 pairs = self.ticker_pairs()
@@ -729,7 +794,7 @@ class Grabber(object):
         if isinstance(pairs, str):
             # All pairs in db
             if pairs == 'db':
-                pairs = self.mongo.db_cols()
+                pairs = self.mongo.col_list()
             else:
                 regex = re.compile(pairs)
                 pairs = list(filter(regex.search, self.ticker_pairs()))
