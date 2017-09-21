@@ -44,7 +44,7 @@ Get progress of currently stored history relative to overall available on Poloni
 grabber.progress()
 ```
 
-### One pair
+### Grab one pair
 
 To perform an action on a single pair, use `Grabber.one()`
 
@@ -120,7 +120,7 @@ grabber.one('USDT_BCH', from_ts='oldest', to_ts='newest', drop=True)
 
 ***
 
-### Row of pairs
+### Grab row of pairs
 
 To perform an action on multiple pairs sequentially, use `Grabber.row()`
 
@@ -154,7 +154,7 @@ grabber.row(r'(ETH_+)', from_ts=plnxgrabber.ago_ts(60))
 
 ***
 
-### Ring of pairs
+### Grab row of pairs on repeat
 
 To constantly collect the most recent records, use `Grabber.ring()`
 
