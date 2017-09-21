@@ -27,9 +27,21 @@ grabber = plnxgrabber.Grabber(db)
 
 ## Usage
 
+### General
+
 Get information on pairs available on Poloniex:
 ```python
 grabber.remote_info(['USDT_BTC', 'USDT_ETH', 'USDT_LTC'])
+```
+
+Get information on pairs stored locally:
+```python
+grabber.db_info()
+```
+
+Get progress of currently stored history relative to overall available on Poloniex:
+```python
+grabber.progress()
 ```
 
 ### One pair
