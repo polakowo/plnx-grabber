@@ -145,11 +145,6 @@ Keep updating a row of pairs every 60 sec:
 grabber.ring(["USDT_BTC", "USDT_ETH"], every=60)
 ```
 
-Update a row of pairs 3 times:
-```python
-grabber.ring(["USDT_BTC", "USDT_ETH"], every=60, iterations=3)
-```
-
 Update continuously:
 ```python
 grabber.ring(["USDT_BTC", "USDT_ETH"])
