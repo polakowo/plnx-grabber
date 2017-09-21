@@ -27,6 +27,11 @@ grabber = plnxgrabber.Grabber(db)
 
 ## Usage
 
+Get information on pairs available on Poloniex:
+```python
+grabber.remote_info(['USDT_BTC', 'USDT_ETH', 'USDT_LTC'])
+```
+
 ### One pair
 
 To perform an action on a single pair, use `Grabber.one()`
