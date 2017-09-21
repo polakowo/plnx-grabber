@@ -154,7 +154,7 @@ grabber.row(r'(ETH_+)', from_ts=plnxgrabber.ago_ts(60))
 
 ***
 
-### Grab row of pairs on repeat
+### Update row of pairs
 
 To constantly collect the most recent records, use `Grabber.ring()`
 
