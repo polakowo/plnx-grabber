@@ -157,5 +157,3 @@ Continue updating all collections:
 ```python
 grabber.ring('db')
 ```
-
-**See comments for further details.**
