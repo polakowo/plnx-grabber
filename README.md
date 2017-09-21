@@ -52,7 +52,7 @@ grabber.progress()
 
 ### Grab one pair
 
-To perform an action on a single pair, use `Grabber.one()`
+To collect trade history for a single pair, use `Grabber.one()`
 
 * If collection empty yet, simply record everything
 * `from_ts` and `end_ts` are either timestamps or strings (see below)
@@ -128,7 +128,7 @@ grabber.one('USDT_BCH', from_ts='oldest', to_ts='newest', drop=True)
 
 ### Grab row of pairs
 
-To perform an action on multiple pairs sequentially, use `Grabber.row()`
+To collect trade history for a row of pairs, use `Grabber.row()`
 
 For the following 4 pairs, collect the history from 1/9/2017 12:00:00 to 1/9/2017 18:00:00:
 ```python
@@ -162,7 +162,7 @@ grabber.row(r'(ETH_+)', from_ts=plnxgrabber.ago_ts(60))
 
 ### Update row of pairs
 
-To constantly collect the most recent records, use `Grabber.ring()`
+To constantly collect the most recent records for a row of pairs, use `Grabber.ring()`
 
 Keep updating a row of pairs every 60 sec:
 ```python
