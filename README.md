@@ -27,7 +27,24 @@ grabber = plnxgrabber.Grabber(db)
 
 ## Usage
 
-### One pair
+### General
+
+Get information on pairs available on Poloniex:
+```python
+grabber.remote_info(['USDT_BTC', 'USDT_ETH', 'USDT_LTC'])
+```
+
+Get information on pairs stored locally:
+```python
+grabber.db_info()
+```
+
+Get progress of currently stored history relative to overall available on Poloniex:
+```python
+grabber.progress()
+```
+
+### Grab one pair
 
 To perform an action on a single pair, use `Grabber.one()`
 
@@ -103,7 +120,7 @@ grabber.one('USDT_BCH', from_ts='oldest', to_ts='newest', drop=True)
 
 ***
 
-### Row of pairs
+### Grab row of pairs
 
 To perform an action on multiple pairs sequentially, use `Grabber.row()`
 
@@ -137,7 +154,7 @@ grabber.row(r'(ETH_+)', from_ts=plnxgrabber.ago_ts(60))
 
 ***
 
-### Ring of pairs
+### Update row of pairs
 
 To constantly collect the most recent records, use `Grabber.ring()`
 
