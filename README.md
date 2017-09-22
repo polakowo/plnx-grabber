@@ -1,7 +1,12 @@
 ![python](https://img.shields.io/badge/python-3-yellow.svg)![license](https://img.shields.io/badge/license-GPL%20v3-yellow.svg)
 
 # plnx-grabber
-Transfer trade history of any pair and time period from Poloniex exchange chunk-wise into the local MongoDB database
+Transfer trade history from Poloniex into a local MongoDB database
+
+* Every pair and time period
+* Chunk wise without using much RAM
+* One time, multiple times or continuous
+* Smart outputs on history available on Poloniex as well as locally
 
 ## Installation
 
