@@ -58,6 +58,9 @@ def now():
 def ago(**kwargs):
     return now() - timedelta(**kwargs)
 
+def begin():
+    return datetime(2000, 1, 1, tzinfo=pytz.utc)
+
 
 def dt_to_ts(date):
     return int(date.timestamp())
@@ -337,7 +340,7 @@ class Grabber(object):
         # Dates are required to build rolling windows and pass them to Poloniex
         # If start and/or end dates are empty, set the widest period possible
         if from_dt is None:
-            from_dt = datetime(2010, 1, 1)
+            from_dt = begin()
         if to_dt is None:
             to_dt = now()
         if to_dt <= from_dt:
@@ -560,7 +563,7 @@ class Grabber(object):
 
         # If nothing is passed, fetch the widest tail and/or head possible
         if from_dt is None:
-            from_dt = datetime(2010, 1, 1)
+            from_dt = begin()
         if to_dt is None:
             to_dt = now()
 

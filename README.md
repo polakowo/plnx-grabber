@@ -18,7 +18,7 @@ pip install https://github.com/polakowo/plnx-grabber/archive/master.zip
 
 ```python
 from pymongo import MongoClient
-import arrow
+from datetime import datetime
 import plnxgrabber
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(funcName)s() - %(levelname)s - %(message)s',
@@ -65,21 +65,21 @@ Collect the entire history:
 ```python
 grabber.one('USDT_BCH')
 
-# or grabber.one('USDT_BCH', from_ts=0, to_ts=plnxgrabber.ts_now())
+# or grabber.one('USDT_BCH', from_dt=plnxgrabber.begin(), to_dt=plnxgrabber.now())
 ```
 
 Collect the history between 1/9/2017 12:00:00 to 1/9/2017 18:00:00:
 ```python
-from_ts = arrow.Arrow(2017, 9, 1, 12, 0, 0).timestamp
-to_ts = arrow.Arrow(2017, 9, 1, 18, 0, 0).timestamp
-grabber.one('USDT_BTC', from_ts=from_ts, to_ts=to_ts)
+from_dt = datetime.datetime(2017, 9, 1, 12, 0, 0, tzinfo=pytz.utc)
+to_dt = datetime.datetime(2017, 9, 1, 18, 0, 0, tzinfo=pytz.utc)
+grabber.one('USDT_BTC', from_dt=from_dt, to_dt=to_dt)
 ```
 
 Collect the last hour:
 ```python
-grabber.one('USDT_BTC', from_ts=plnxgrabber.ts_ago(60*60))
+grabber.one('USDT_BTC', from_dt=plnxgrabber.ago(hours=1))
 
-# or grabber.one('USDT_BTC', from_ts=plnxgrabber.ts_ago(60*60), to_ts=plnxgrabber.ts_now())
+# or grabber.one('USDT_BTC', from_dt=plnxgrabber.ago(hours=1), to_dt=plnxgrabber.now())
 ```
 
 * If collection not empty, it gets extended
@@ -88,21 +88,21 @@ grabber.one('USDT_BTC', from_ts=plnxgrabber.ts_ago(60*60))
 
 Collect everything below the oldest record in the collection (backward):
 ```python
-grabber.one('USDT_BTC', to_ts='oldest')
+grabber.one('USDT_BTC', to_dt='oldest')
 
-# or grabber.one('USDT_BTC', from_ts=0, to_ts='oldest')
+# or grabber.one('USDT_BTC', from_dt=plnxgrabber.begin(), to_dt='oldest')
 ```
 
 Collect everything above the newest record in the collection (forward):
 ```python
-grabber.one('USDT_BTC', from_ts='newest')
+grabber.one('USDT_BTC', from_dt='newest')
 
-# or grabber.one('USDT_BTC', from_ts='newest', to_ts=plnxgrabber.now_ts())
+# or grabber.one('USDT_BTC', from_dt='newest', to_dt=plnxgrabber.now())
 ```
 
 Drop currently stored pair and recollect:
 ```python
-grabber.one('USDT_BCH', from_ts='oldest', to_ts='newest', drop=True)
+grabber.one('USDT_BCH', from_dt='oldest', to_dt='newest', drop=True)
 ```
 
 ***
@@ -113,9 +113,9 @@ To collect trade history for a row of pairs, use `Grabber.row()`
 
 For the following 4 pairs, collect the history from 1/9/2017 12:00:00 to 1/9/2017 18:00:00:
 ```python
-from_ts = arrow.Arrow(2017, 9, 1, 12, 0, 0).timestamp
-to_ts = arrow.Arrow(2017, 9, 1, 18, 0, 0).timestamp
-grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH'], from_ts=from_ts, to_ts=to_ts)
+from_dt = datetime.datetime(2017, 9, 1, 12, 0, 0, tzinfo=pytz.utc)
+to_dt = datetime.datetime(2017, 9, 1, 18, 0, 0, tzinfo=pytz.utc)
+grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH'], from_dt=from_dt, to_dt=to_dt)
 ```
 
 ![UbIlti](https://i.makeagif.com/media/9-18-2017/UbIlti.gif)
@@ -126,17 +126,17 @@ grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH'], from_ts=from_ts, t
 
 For each pair in the current ticker, collect the last 5 minutes:
 ```python
-grabber.row('ticker', from_ts=plnxgrabber.ago_ts(5*60))
+grabber.row('ticker', from_dt=plnxgrabber.ago(minutes=5))
 ```
 
 Recollect each collection:
 ```python
-grabber.row('db', from_ts='oldest', to_ts='newest', drop=True)
+grabber.row('db', from_dt='oldest', to_dt='newest', drop=True)
 ```
 
 For each ETH pair, collect the last minute:
 ```python
-grabber.row(r'(ETH_+)', from_ts=plnxgrabber.ago_ts(60))
+grabber.row(r'(ETH_+)', from_dt=plnxgrabber.ago(minutes=1))
 ```
 
 ***
