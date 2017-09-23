@@ -1,9 +1,10 @@
 import logging
 from timeit import default_timer as timer
 
-import arrow
 import pandas as pd
 import pymongo
+import pytz
+from bson.codec_options import CodecOptions
 
 # Logger
 ############################################################
@@ -16,20 +17,14 @@ logger.addHandler(logging.NullHandler())
 # Series information
 ############################################################
 
-def ts_to_date(ts):
-    return arrow.get(ts)
+
+def dt_to_str(date, fmt='%a %d/%m/%Y %H:%M:%S %Z'):
+    # Format date for showing in console and logs
+    return date.strftime(fmt)
 
 
-def ts_to_str(ts, fmt='ddd DD/MM/YYYY HH:mm:ss ZZ'):
-    return arrow.get(ts).format(fmt)
-
-
-def ts_delta(ts1, ts2):
-    return abs(ts_to_date(ts1) - ts_to_date(ts2))
-
-
-def format_delta(td_object):
-    seconds = int(abs(td_object).total_seconds())
+def format_td(td):
+    seconds = int(abs(td).total_seconds())
     periods = [('year', 60 * 60 * 24 * 365),
                ('month', 60 * 60 * 24 * 30),
                ('day', 60 * 60 * 24),
@@ -58,11 +53,11 @@ def format_bytes(num):
 
 def series_info_str(series_info):
     return "{ %s : %d, %s : %d, %s, %d rows, %s }" % (
-        ts_to_str(series_info['from_ts']),
+        dt_to_str(series_info['from_dt']),
         series_info['from_id'],
-        ts_to_str(series_info['to_ts']),
+        dt_to_str(series_info['to_dt']),
         series_info['to_id'],
-        format_delta(series_info['delta']),
+        format_td(series_info['delta']),
         series_info['count'],
         format_bytes(series_info['memory']))
 
@@ -75,7 +70,7 @@ def df_to_docs(df):
     return df.reset_index().to_dict(orient='records')
 
 
-def docs_to_df(docs, new_index=['_id', 'ts']):
+def docs_to_df(docs, new_index=['_id', 'dt']):
     # Convert docs to df
     return pd.DataFrame(list(docs)).set_index(new_index, drop=True)
 
@@ -111,13 +106,20 @@ class MongoTS(object):
 
     # Collections
 
+    def tzaware_col(self, cname):
+        """
+        Return timezone-aware dates by default
+        """
+        options = CodecOptions(tz_aware=True, tzinfo=pytz.utc)
+        return self.db.get_collection(cname, codec_options=options)
+
     def list_cols(self):
         return self.db.collection_names()
 
     def create_col(self, cname):
         # Create new collection and index on timestamp field
         self.db.create_collection(cname)
-        self.db[cname].create_index([('ts', pymongo.ASCENDING)], unique=False, background=True)
+        self.db[cname].create_index([('dt', pymongo.ASCENDING)], unique=False, background=True)
 
     def drop_col(self, cname):
         # Delete collection entirely
@@ -144,11 +146,11 @@ class MongoTS(object):
         from_dict = self.from_doc(cname)
         to_dict = self.to_doc(cname)
         return {
-            'from_ts': from_dict['ts'],
+            'from_dt': from_dict['dt'],
             'from_id': from_dict['_id'],
-            'to_ts': to_dict['ts'],
+            'to_dt': to_dict['dt'],
             'to_id': to_dict['_id'],
-            'delta': ts_delta(from_dict['ts'], to_dict['ts']),
+            'delta': to_dict['dt'] - from_dict['dt'],
             'count': self.docs_count(cname),
             'memory': self.col_memory(cname)}
 
@@ -165,51 +167,9 @@ class MongoTS(object):
             logger.debug("Collection - Verified - %.2fs", timer() - t)
         return diff == 0
 
-    def series_range(self, cname, from_ts, to_ts):
+    def series_range(self, cname, from_dt, to_dt):
         # Get the series in the range
-        return self.find_docs(cname, query={'ts': {'$gte': from_ts, '$lte': to_ts}})
-
-    def series_candlesticks(self, cname, from_ts, to_ts):
-        # Group the data into candlesticks
-        # TODO: Switch from timestamps to dates for aggregation to work
-        return self.db.command('aggregate', cname,
-            pipeline=[
-                {'$project': {
-                    'minute': {
-                        '0': {'$year': '$ts'},
-                        '1': {'$month': '$ts'},
-                        '2': {'$dayOfMonth': '$ts'},
-                        '3': {'$hour': '$ts'},
-                        '4': {'$minute': '$ts'}
-                      },
-                     'ts': 1,
-                     'rate': 1
-                    }
-                  },
-                  {'$sort': {'ts': 1}},
-                  {'$group': {
-                      '_id': '$minute',
-                      'ts': {'$first': '$ts'},
-                      'rate_open': {'$first': '$rate'},
-                      'rate_close': {'$last': '$rate'},
-                      'rate_high': {'$max': '$rate'},
-                      'rate_low': {'$min': '$rate'},
-                      'rate_avg': {'$avg': '$rate'}
-                    }
-                  },
-                  {'$sort': {'ts': 1}},
-                  {'$project': {
-                      '_id': '$ts',
-                      'rate': {
-                        'open': '$rate_open',
-                        'close': '$rate_close',
-                        'high': '$rate_high',
-                        'low': '$rate_low',
-                        'avg': '$rate_avg'
-                      }
-                    }
-                  },
-            ])['result']
+        return self.find_docs(cname, query={'dt': {'$gte': from_dt, '$lte': to_dt}})
 
     # Documents
 
@@ -219,11 +179,11 @@ class MongoTS(object):
 
     def from_doc(self, cname):
         # Return the document for the earliest point in series
-        return next(self.db[cname].find().sort([['_id', 1]]).limit(1))
+        return next(self.tzaware_col(cname).find().sort([['_id', 1]]).limit(1))
 
     def to_doc(self, cname):
         # Return the document for the most recent point in series
-        return next(self.db[cname].find().sort([['_id', -1]]).limit(1))
+        return next(self.tzaware_col(cname).find().sort([['_id', -1]]).limit(1))
 
     def insert_docs(self, cname, docs):
         # Convert df into list of dicts and insert into collection (fast)
@@ -258,4 +218,4 @@ class MongoTS(object):
 
     def find_docs(self, cname, query={}):
         # Return generator for documents which match query
-        return self.db[cname].find(query)
+        return self.tzaware_col(cname).find(query)

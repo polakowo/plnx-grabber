@@ -1,6 +1,7 @@
 import logging
+from datetime import datetime
 
-from arrow import Arrow
+import pytz
 from pymongo import MongoClient
 
 import plnxgrabber
@@ -15,7 +16,7 @@ def get_db(name):
 def main():
     logging.basicConfig(format='%(asctime)s - %(name)s - %(funcName)s() - %(levelname)s - %(message)s',
                         datefmt='%d/%m/%Y %H:%M:%S',
-                        level=logging.INFO)
+                        level=logging.DEBUG)
 
     # logging.basicConfig(filename='plnxgrabber.log',
     #                     filemode='w',
@@ -27,11 +28,12 @@ def main():
     grabber = plnxgrabber.Grabber(db)
 
     try:
-        # Collect every USDT_* pair starting from September 1st
-        grabber.row('(USDT_+)', from_ts=Arrow(2017, 9, 1, 0, 0, 0).timestamp, drop=True)
+        from_dt = datetime(2017, 9, 5, 0, 0, 0, tzinfo=pytz.utc)
+        to_dt = datetime(2017, 9, 5, 0, 30, 0, tzinfo=pytz.utc)
+        grabber.one('USDT_LTC', from_dt=from_dt, to_dt=to_dt, drop=True)
     except Exception as e:
         logging.exception(e)
-    # Show advanced information on stored pairs
+
     grabber.db_info()
 
 

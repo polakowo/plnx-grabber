@@ -19,12 +19,13 @@
 import logging
 import math
 import re
+from datetime import datetime, timedelta
 from enum import Enum
-from time import sleep
+from time import sleep, mktime
 from timeit import default_timer as timer
 
-import arrow
 import pandas as pd
+import pytz
 from poloniex import Poloniex
 
 import mongots
@@ -40,42 +41,30 @@ logger.addHandler(logging.NullHandler())
 # Date & time
 ############################################################
 
-def parse_date(date_str, fmt='YYYY-MM-DD HH:mm:ss'):
+def parse_date(date_str, fmt='%Y-%m-%d %H:%M:%S'):
     # Parse dates coming from Poloniex
-    return arrow.get(date_str, fmt)
+    return pytz.utc.localize(datetime.strptime(date_str, fmt))
 
 
-def date_to_str(date, fmt='ddd DD/MM/YYYY HH:mm:ss ZZ'):
+def dt_to_str(date, fmt='%a %d/%m/%Y %H:%M:%S %Z'):
     # Format date for showing in console and logs
-    return date.format(fmt)
+    return date.strftime(fmt)
 
 
-def ts_to_str(ts, fmt='ddd DD/MM/YYYY HH:mm:ss ZZ'):
-    return arrow.get(ts).format(fmt)
+def now():
+    return pytz.utc.localize(datetime.utcnow())
 
 
-def now_ts():
-    return arrow.utcnow().timestamp
+def ago(**kwargs):
+    return now() - timedelta(**kwargs)
 
 
-def ago_ts(seconds):
-    return arrow.utcnow().shift(seconds=-seconds).timestamp
+def dt_to_ts(date):
+    return int(date.timestamp())
 
 
-def ts_from_date(date):
-    return date.timestamp
-
-
-def ts_to_date(ts):
-    return arrow.get(ts)
-
-
-def ts_delta(ts1, ts2):
-    return abs(ts_to_date(ts1) - ts_to_date(ts2))
-
-
-def format_td(td_object):
-    seconds = int(abs(td_object).total_seconds())
+def format_td(td):
+    seconds = int(abs(td).total_seconds())
     periods = [('year', 60 * 60 * 24 * 365),
                ('month', 60 * 60 * 24 * 30),
                ('day', 60 * 60 * 24),
@@ -108,28 +97,21 @@ class TimePeriod(Enum):
 # Dataframes
 ############################################################
 
-def index_by_name(df, name):
-    # Get values of an index level, in our case _id or ts
-    return df.index.get_level_values(name)
-
-
 def df_memory(df):
     return df.memory_usage(index=True, deep=True).sum()
 
 
 def df_series_info(df):
-    # Returns the most valuable information on history stored in df.
-    # Get the order by comparing the first and last records.
-    from_i = -1 * (df.index[0][0] > df.index[-1][0])
-    to_i = -1 * (df.index[0][0] < df.index[-1][0])
-    from_id, from_ts = df.index[from_i]
-    to_id, to_ts = df.index[to_i]
+    # Returns the most valuable information on history stored in df
+    # Get the order by comparing the first and last records
+    from_i = -1 * (df.index[0] > df.index[-1])
+    to_i = -1 * (df.index[0] < df.index[-1])
     return {
-        'from_ts': from_ts,
-        'from_id': from_id,
-        'to_ts': to_ts,
-        'to_id': to_id,
-        'delta': ts_delta(from_ts, to_ts),
+        'from_dt': df.iloc[from_i]['dt'],
+        'from_id': df.index[from_i],
+        'to_dt': df.iloc[to_i]['dt'],
+        'to_id': df.index[to_i],
+        'delta': df.iloc[to_i]['dt'] - df.iloc[from_i]['dt'],
         'count': len(df.index),
         'memory': df_memory(df)}
 
@@ -157,9 +139,9 @@ def format_bytes(num):
 
 def series_info_str(series_info):
     return "{ %s : %d, %s : %d, %s, %d rows, %s }" % (
-        ts_to_str(series_info['from_ts']),
+        dt_to_str(series_info['from_dt']),
         series_info['from_id'],
-        ts_to_str(series_info['to_ts']),
+        dt_to_str(series_info['to_dt']),
         series_info['to_id'],
         format_td(series_info['delta']),
         series_info['count'],
@@ -195,7 +177,7 @@ class Grabber(object):
         cname_series_info = {cname: self.mongo.series_info(cname) for cname in self.mongo.list_cols()}
         for pair, series_info in cname_series_info.items():
             # Get latest id
-            df = self.get_chunk(pair, now_ts() - 15*60, now_ts())
+            df = self.get_chunk(pair, ago(minutes=15), now())
             if df.empty:
                 logger.info("%s - No information available", pair)
                 continue
@@ -223,11 +205,11 @@ class Grabber(object):
         Detailed info on pairs listed on Poloniex
         """
         for pair in pairs:
-            chart_data = Poloniex().returnChartData(pair, period=86400, start=1, end=now_ts())
-            from_ts = chart_data[0]['date']
-            to_ts = chart_data[-1]['date']
+            chart_data = Poloniex().returnChartData(pair, period=86400, start=1, end=dt_to_ts(now()))
+            from_dt = chart_data[0]['date']
+            to_dt = chart_data[-1]['date']
 
-            df = self.get_chunk(pair, now_ts() - 300, now_ts())
+            df = self.get_chunk(pair, ago(minutes=5), now())
             if df.empty:
                 logger.info("%s - No information available")
                 continue
@@ -235,9 +217,9 @@ class Grabber(object):
 
             logger.info("%s - %s - %s, %s, %d trades, est. %s",
                         pair,
-                        ts_to_str(from_ts, fmt='ddd DD/MM/YYYY'),
-                        ts_to_str(to_ts, fmt='ddd DD/MM/YYYY'),
-                        format_td(ts_delta(from_ts, to_ts)),
+                        dt_to_str(from_dt, fmt='%a %d/%m/%Y'),
+                        dt_to_str(to_dt, fmt='%a %d/%m/%Y'),
+                        format_td(to_dt - from_dt),
                         max_id,
                         format_bytes(round(df_memory(df) * max_id / len(df.index))))
 
@@ -255,18 +237,18 @@ class Grabber(object):
         pairs = set(map(lambda x: str(x).upper(), ticker.keys()))
         return pairs
 
-    def get_chunk(self, pair, start, end):
+    def get_chunk(self, pair, from_dt, to_dt):
         """
         Returns a chunk of trade history (max 50,000 of the most recent records) of a period of time
 
         :param pair: pair of symbols
-        :param start: timestamp of start
-        :param end: timestamp of end
+        :param start: date of start
+        :param end: date of end
         :return: df
         """
         try:
-            history = self.polo.marketTradeHist(pair, start=start, end=end)
-            series_df = pd.DataFrame(history)
+            series = self.polo.marketTradeHist(pair, start=dt_to_ts(from_dt), end=dt_to_ts(to_dt))
+            series_df = pd.DataFrame(series)
             series_df = series_df.astype({
                 'date': str,
                 'amount': float,
@@ -275,15 +257,15 @@ class Grabber(object):
                 'total': float,
                 'tradeID': int,
                 'type': str})
-            series_df['date'] = series_df['date'].apply(lambda date_str: ts_from_date(parse_date(date_str))).astype(
-                int)
-            series_df.rename(columns={'date': 'ts', 'tradeID': '_id', 'globalTradeID': 'globalid'}, inplace=True)
-            series_df = series_df.set_index(['_id', 'ts'], drop=True)
+            series_df['date'] = series_df['date'].apply(lambda date_str: parse_date(date_str))
+            series_df.rename(columns={'date': 'dt', 'tradeID': '_id', 'globalTradeID': 'globalid'}, inplace=True)
+            series_df = series_df.set_index(['_id'], drop=True)
             return series_df
         except Exception as e:
+            logger.error(e)
             return pd.DataFrame()
 
-    def grab(self, pair, from_ts=None, from_id=None, to_ts=None, to_id=None):
+    def grab(self, pair, from_dt=None, from_id=None, to_dt=None, to_id=None):
         """
         Grabs trade history of a period of time for a pair of symbols.
 
@@ -291,33 +273,33 @@ class Grabber(object):
         * History is divided into chunks of max 50,000 records
         * Chunks are synced by id of their oldest records
         * Once received, each chunk is immediately put into MongoDB to free up RAM
-        * Result includes passed dates - [from_ts, to_ts]
+        * Result includes passed dates - [from_dt, to_dt]
         * Result excludes passed ids - (from_id, to_id)
         * Ids have higher priority than dates
         
         The whole process looks like this:
-        1) Start recording history chunk by chunk beginning from to_ts
+        1) Start recording history chunk by chunk beginning from to_dt
 
-                [ from_ts/from_id <- xxxxxxxxxxxxxxxxxxxxxxxxxx to_ts ]
+                [ from_dt/from_id <- xxxxxxxxxxxxxxxxxxxxxxxxxx to_dt ]
 
             or if to_id is provided, find it first and only then start recording
 
-                [ from_ts/from_id ___________ to_id <- <- <- <- to_ts ]
+                [ from_dt/from_id ___________ to_id <- <- <- <- to_dt ]
 
-                [ from_ts/from_id <- xxxxxxxx to_id ___________ to_ts ]
+                [ from_dt/from_id <- xxxxxxxx to_id ___________ to_dt ]
 
 
         2) Each chunk is verified for consistency and inserted into MongoDB
         3) Proceed until start date or id are reached, or Poloniex returned nothing
 
-                [ from_ts/from_id xxxxxxxxxxxxxxxxxxxxxxxxxxxxx to_ts ]
+                [ from_dt/from_id xxxxxxxxxxxxxxxxxxxxxxxxxxxxx to_dt ]
                                                 |
                                                 v
                                         collected history
 
             or if to_id is provided
 
-                [ from_ts/from_id xxxxxxxxxxx to_id ___________ to_ts ]
+                [ from_dt/from_id xxxxxxxxxxx to_id ___________ to_dt ]
                                          |
                                          v
                                  collected history
@@ -325,9 +307,9 @@ class Grabber(object):
         4) Verify whole collection
 
         :param pair: pair of symbols
-        :param from_ts: timestamp of start point (only as approximation, program aborts if found)
+        :param from_dt: date of start point (only as approximation, program aborts if found)
         :param from_id: id of start point (has higher priority than ts, program aborts if found)
-        :param to_ts: timestamp of end point
+        :param to_dt: date of end point
         :param to_id: id of end point
         :return: None
         """
@@ -341,11 +323,11 @@ class Grabber(object):
                 self.mongo.create_col(pair)
         logger.debug("%s - Collection - Achieving { %s%s, %s%s, %s }",
                      pair,
-                     ts_to_str(from_ts),
+                     dt_to_str(from_dt),
                      ' : %d' % from_id if from_id is not None else '',
-                     ts_to_str(to_ts),
+                     dt_to_str(to_dt),
                      ' : %d' % to_id if to_id is not None else '',
-                     format_td(ts_delta(from_ts, to_ts)))
+                     format_td(to_dt - from_dt))
 
         t = timer()
 
@@ -354,23 +336,23 @@ class Grabber(object):
 
         # Dates are required to build rolling windows and pass them to Poloniex
         # If start and/or end dates are empty, set the widest period possible
-        if from_ts is None:
-            from_ts = 0
-        if to_ts is None:
-            to_ts = now_ts()
-        if to_ts <= from_ts:
+        if from_dt is None:
+            from_dt = datetime(2010, 1, 1)
+        if to_dt is None:
+            to_dt = now()
+        if to_dt <= from_dt:
             raise Exception("%s - Start date { %s } above end date { %s }" %
-                            (pair, ts_to_str(from_ts), ts_to_str(to_ts)))
+                            (pair, dt_to_str(from_dt), dt_to_str(to_dt)))
         if from_id is not None and to_id is not None:
             if to_id <= from_id:
                 raise Exception("%s - Start id { %d } above end id { %d }" %
                                 (pair, from_id, to_id))
 
-        max_window_size = TimePeriod.MONTH.value
+        max_delta = timedelta(days=30)
         window = {
-            # Do not fetch more than needed, pick the size smaller or equal to max_window_size
-            'from_ts': max(to_ts - max_window_size, from_ts),
-            'to_ts': to_ts,
+            # Do not fetch more than needed, pick the size smaller or equal to max_delta
+            'from_dt': max(to_dt - max_delta, from_dt),
+            'to_dt': to_dt,
             # Gets filled after first chunk is fetched
             'anchor_id': None
         }
@@ -391,21 +373,21 @@ class Grabber(object):
 
             logger.debug("%s - Poloniex - Querying { %s, %s, %s }",
                          pair,
-                         ts_to_str(window['from_ts']),
-                         ts_to_str(window['to_ts']),
-                         format_td(ts_delta(window['from_ts'], window['to_ts'])))
+                         dt_to_str(window['from_dt']),
+                         dt_to_str(window['to_dt']),
+                         format_td(window['to_dt'] - window['from_dt']))
 
-            df = self.get_chunk(pair, window['from_ts'], window['to_ts'])
+            df = self.get_chunk(pair, window['from_dt'], window['to_dt'])
             if df.empty:
-                if anything_recorded or window['from_ts'] == from_ts:
+                if anything_recorded or window['from_dt'] == from_dt:
                     # If we finished (either by reaching start or receiving no records) -> terminate
                     logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
                     break
                 else:
                     # If Poloniex temporary suspended trading for a pair -> look for older records
                     logger.debug("%s - Poloniex - Nothing returned - continuing", pair)
-                    window['to_ts'] = window['from_ts']
-                    window['from_ts'] = max(window['from_ts'] - max_window_size, from_ts)
+                    window['to_dt'] = window['from_dt']
+                    window['from_dt'] = max(window['from_dt'] - max_delta, from_dt)
                     continue
 
             # If chunk contains end id (newest bound) -> start recording
@@ -413,12 +395,12 @@ class Grabber(object):
 
             if not recording:
                 # End id found
-                if to_id in index_by_name(df, '_id'):
+                if to_id in df.index:
                     logger.debug("%s - Poloniex - End id { %d } found", pair, to_id)
                     # Start recording
                     recording = True
 
-                    df = df[index_by_name(df, '_id') < to_id]
+                    df = df[df.index < to_id]
                     if df.empty:
                         logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
                         break
@@ -427,23 +409,23 @@ class Grabber(object):
                     logger.debug("%s - Poloniex - End id { %d } not found in { %s : %d, %s : %d }",
                                  pair,
                                  to_id,
-                                 ts_to_str(series_info['from_ts']),
+                                 dt_to_str(series_info['from_dt']),
                                  series_info['from_id'],
-                                 ts_to_str(series_info['to_ts']),
+                                 dt_to_str(series_info['to_dt']),
                                  series_info['to_id'])
 
                     # If start reached -> terminate
                     if from_id is not None:
-                        if any(index_by_name(df, '_id') <= from_id):
+                        if any(df.index <= from_id):
                             logger.debug("%s - Poloniex - Start id { %d } reached - aborting", pair, from_id)
                             break
-                    if any(index_by_name(df, 'ts') <= from_ts):
-                        logger.debug("%s - Poloniex - Start date { %s } reached - aborting", pair, ts_to_str(from_ts))
+                    if any(df['dt'] <= from_dt):
+                        logger.debug("%s - Poloniex - Start date { %s } reached - aborting", pair, dt_to_str(from_dt))
                         break
 
                     series_info = df_series_info(df)
-                    window['from_ts'] = max(series_info['from_ts'] - max_window_size, from_ts)
-                    window['to_ts'] = series_info['from_ts']
+                    window['from_dt'] = max(series_info['from_dt'] - max_delta, from_dt)
+                    window['to_dt'] = series_info['from_dt']
                     continue
 
             if recording:
@@ -453,8 +435,8 @@ class Grabber(object):
 
                 if window['anchor_id'] is not None:
                     # To merge two dataframes, there must be an intersection of ids (anchor)
-                    if any(index_by_name(df, '_id') >= window['anchor_id']):
-                        df = df[index_by_name(df, '_id') < window['anchor_id']]
+                    if any(df.index >= window['anchor_id']):
+                        df = df[df.index < window['anchor_id']]
                         if df.empty:
                             logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
                             break
@@ -465,10 +447,9 @@ class Grabber(object):
 
                 # If chunk contains start id or date (oldest record) -> finish recording
                 # ....................................................................
-
                 if from_id is not None:
-                    if any(index_by_name(df, '_id') <= from_id):
-                        df = df[index_by_name(df, '_id') > from_id]
+                    if any(df.index <= from_id):
+                        df = df[df.index > from_id]
                         if df.empty:
                             logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
                         else:
@@ -480,14 +461,14 @@ class Grabber(object):
                                 anything_recorded = True
                         break  # escape anyway
                 # or at least the approx. date
-                elif any(index_by_name(df, 'ts') <= from_ts):
-                    df = df[index_by_name(df, 'ts') >= from_ts]
+                elif any(df['dt'] <= from_dt):
+                    df = df[df['dt'] >= from_dt]
                     if df.empty:
                         logger.debug("%s - Poloniex - Nothing returned - aborting", pair)
                     else:
                         logger.debug("%s - Poloniex - Returned %s - %.2fs",
                                      pair, series_info_str(df_series_info(df)), timer() - t2)
-                        logger.debug("%s - Poloniex - Start date { %s } reached - aborting", pair, ts_to_str(from_ts))
+                        logger.debug("%s - Poloniex - Start date { %s } reached - aborting", pair, dt_to_str(from_dt))
                         if verify_series_df(df):
                             self.mongo.insert_docs(pair, mongots.df_to_docs(df))
                             anything_recorded = True
@@ -520,8 +501,8 @@ class Grabber(object):
                 # ........................
 
                 series_info = df_series_info(df)
-                window['from_ts'] = max(series_info['from_ts'] - max_window_size, from_ts)
-                window['to_ts'] = series_info['from_ts']
+                window['from_dt'] = max(series_info['from_dt'] - max_delta, from_dt)
+                window['to_dt'] = series_info['from_dt']
                 window['anchor_id'] = series_info['from_id']
 
         # Verify collection after recordings
@@ -536,95 +517,95 @@ class Grabber(object):
         else:
             logger.debug("%s - Nothing returned - %.2fs", pair, timer() - t)
 
-    def one(self, pair, from_ts=None, to_ts=None, drop=False):
+    def one(self, pair, from_dt=None, to_dt=None, drop=False):
 
         """
         Grabs data for a pair based on passed params as well as history stored in the underlying collection
 
-        Possible values of from_ts and to_ts:
-        * 'oldest' means the from_ts of the collection
-        * 'newest' means the to_ts of the collection
+        Possible values of from_dt and to_dt:
+        * 'oldest' means the from_dt of the collection
+        * 'newest' means the to_dt of the collection
 
         :param pair: pair of symbols
-        :param from_ts: timestamp of the start point or command from ['oldest', 'newest']
-        :param to_ts: timestamp of the end point or command from ['oldest', 'newest']
+        :param from_dt: date of the start point or command from ['oldest', 'newest']
+        :param to_dt: date of the end point or command from ['oldest', 'newest']
         :param drop: delete underlying collection before insert
         :return: None
         """
         t = timer()
         logger.info("%s - ...", pair)
 
-        # Fill timestamps of collection's bounds
+        # Fill dates of collection's bounds
         if self.mongo.col_non_empty(pair):
             series_info = self.mongo.series_info(pair)
 
-            if isinstance(from_ts, str):
-                if from_ts == 'oldest':
-                    from_ts = series_info['from_ts']
-                elif from_ts == 'newest':
-                    from_ts = series_info['to_ts']
+            if isinstance(from_dt, str):
+                if from_dt == 'oldest':
+                    from_dt = series_info['from_dt']
+                elif from_dt == 'newest':
+                    from_dt = series_info['to_dt']
                 else:
-                    raise Exception("Unknown command '%s'" % from_ts)
-            if isinstance(to_ts, str):
-                if to_ts == 'oldest':
-                    to_ts = series_info['from_ts']
-                elif to_ts == 'newest':
-                    to_ts = series_info['to_ts']
+                    raise Exception("Unknown command '%s'" % from_dt)
+            if isinstance(to_dt, str):
+                if to_dt == 'oldest':
+                    to_dt = series_info['from_dt']
+                elif to_dt == 'newest':
+                    to_dt = series_info['to_dt']
                 else:
-                    raise Exception("Unknown command '%s'" % to_ts)
+                    raise Exception("Unknown command '%s'" % to_dt)
 
             # Overwrite means drop completely
             if drop:
                 self.mongo.drop_col(pair)
 
         # If nothing is passed, fetch the widest tail and/or head possible
-        if from_ts is None:
-            from_ts = 0
-        if to_ts is None:
-            to_ts = now_ts()
+        if from_dt is None:
+            from_dt = datetime(2010, 1, 1)
+        if to_dt is None:
+            to_dt = now()
 
         if self.mongo.col_non_empty(pair):
             series_info = self.mongo.series_info(pair)
 
             # Period must be non-zero
-            if from_ts >= to_ts:
+            if from_dt >= to_dt:
                 raise Exception("%s - Start date { %s } above end date { %s }" %
-                                (pair, ts_to_str(from_ts), ts_to_str(to_ts)))
+                                (pair, dt_to_str(from_dt), dt_to_str(to_dt)))
 
-            if from_ts < series_info['from_ts']:
+            if from_dt < series_info['from_dt']:
                 logger.debug("%s - Grabbing tail", pair)
                 # Collect history up to the oldest record
                 self.grab(pair,
-                          from_ts=from_ts,
-                          to_ts=series_info['from_ts'],
+                          from_dt=from_dt,
+                          to_dt=series_info['from_dt'],
                           to_id=series_info['from_id'])
 
-            if to_ts > series_info['to_ts']:
+            if to_dt > series_info['to_dt']:
                 logger.debug("%s - Grabbing head", pair)
                 # Collect history from the newest record
                 self.grab(pair,
-                          from_ts=series_info['to_ts'],
-                          to_ts=to_ts,
+                          from_dt=series_info['to_dt'],
+                          to_dt=to_dt,
                           from_id=series_info['to_id'])
         else:
             # There is no newest or oldest bounds of empty collection
-            if isinstance(from_ts, str) or isinstance(to_ts, str):
-                raise Exception("%s - Collection empty - cannot auto-fill timestamps" % pair)
+            if isinstance(from_dt, str) or isinstance(to_dt, str):
+                raise Exception("%s - Collection empty - cannot auto-fill dates" % pair)
 
             logger.debug("%s - Grabbing full", pair)
             self.grab(pair,
-                      from_ts=from_ts,
-                      to_ts=to_ts)
+                      from_dt=from_dt,
+                      to_dt=to_dt)
 
         logger.info("%s - Finished - %.2fs", pair, timer() - t)
 
-    def row(self, pairs, from_ts=None, to_ts=None, drop=False):
+    def row(self, pairs, from_dt=None, to_dt=None, drop=False):
         """
         Grabs data for each pair in a row
 
         :param pairs: list of pairs or string command from ['db', 'ticker']
-        :param from_ts: timestamp of the start point or command from ['oldest', 'newest']
-        :param to_ts: timestamp of the end point or command from ['oldest', 'newest']
+        :param from_dt: date of the start point or command from ['oldest', 'newest']
+        :param to_dt: date of the end point or command from ['oldest', 'newest']
         :param drop: delete underlying collection before insert
         :return: None
         """
@@ -642,7 +623,7 @@ class Grabber(object):
             raise Exception("List of pairs must be non-empty")
         for pair in pairs:
             t = timer()
-            self.one(pair, from_ts=from_ts, to_ts=to_ts, drop=drop)
+            self.one(pair, from_dt=from_dt, to_dt=to_dt, drop=drop)
 
     def ring(self, pairs, every=None):
         """
@@ -665,6 +646,6 @@ class Grabber(object):
             raise Exception("List of pairs must be non-empty")
         while True:
             # Collect head every time interval
-            self.row(pairs, to_ts=now_ts())
+            self.row(pairs, to_dt=now())
             if every is not None:
                 sleep(every)
