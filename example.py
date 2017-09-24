@@ -4,19 +4,13 @@ from datetime import datetime
 import pytz
 from pymongo import MongoClient
 
-import plnxgrabber
-
-
-def get_db(name):
-    client = MongoClient('localhost:27017')
-    db = client[name]
-    return db
+from plnxgrabber import plnxgrabber, mongots
 
 
 def main():
     logging.basicConfig(format='%(asctime)s - %(name)s - %(funcName)s() - %(levelname)s - %(message)s',
                         datefmt='%d/%m/%Y %H:%M:%S',
-                        level=logging.DEBUG)
+                        level=logging.INFO)
 
     # logging.basicConfig(filename='plnxgrabber.log',
     #                     filemode='w',
@@ -24,8 +18,10 @@ def main():
     #                     datefmt='%d/%m/%Y %H:%M:%S',
     #                     level=logging.DEBUG)
 
-    db = get_db('TradeHistory')
-    grabber = plnxgrabber.Grabber(db)
+    client = MongoClient('localhost:27017')
+    db = client['TradeHistory']
+    mongo_ts = mongots.MongoTS(db)
+    grabber = plnxgrabber.Grabber(mongo_ts)
 
     try:
         from_dt = datetime(2017, 9, 5, 0, 0, 0, tzinfo=pytz.utc)

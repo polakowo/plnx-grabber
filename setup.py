@@ -1,10 +1,10 @@
 from setuptools import setup
 
 setup(
-    name='plnx-grabber',
+    name='plnx-plnxgrabber',
     version='1.2', # MAJOR.MINOR
     description='Grabber of trade history from Poloniex exchange',
-    url='https://github.com/polakowo/plnx-grabber',
+    url='https://github.com/polakowo/plnx-plnxgrabber',
     author='polakowo',
     license='GPL v3',
     packages=['plnxgrabber'],

@@ -1,3 +1,21 @@
+# Wrapper around pymongo to deal with trade history information
+# https://github.com/polakowo/plnx-grabber
+#
+#   Copyright (C) 2017  https://github.com/polakowo/plnx-grabber
+
+#   This program is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 import logging
 from timeit import default_timer as timer
 
@@ -120,11 +138,12 @@ class MongoTS(object):
         # Create new collection and index on timestamp field
         self.db.create_collection(cname)
         self.db[cname].create_index([('dt', pymongo.ASCENDING)], unique=False, background=True)
+        logger.debug("%s - Collection - Created", cname)
 
     def drop_col(self, cname):
         # Delete collection entirely
         self.db[cname].drop()
-        logger.debug("%s - Dropped entirely", cname)
+        logger.debug("%s - Collection - Dropped", cname)
 
     def col_exists(self, cname):
         return cname in self.list_cols()
@@ -160,11 +179,11 @@ class MongoTS(object):
         series_info = self.series_info(cname)
         diff = series_info['count'] - (series_info['to_id'] - series_info['from_id'] + 1)
         if diff > 0:
-            logger.warning("Collection - Found duplicates (%d) - %.2fs", diff, timer() - t)
+            logger.warning("%s - Collection - Found duplicates (%d) - %.2fs", cname, diff, timer() - t)
         elif diff < 0:
-            logger.warning("Collection - Found gaps (%d) - %.2fs", abs(diff), timer() - t)
+            logger.warning("%s - Collection - Found gaps (%d) - %.2fs", cname, abs(diff), timer() - t)
         else:
-            logger.debug("Collection - Verified - %.2fs", timer() - t)
+            logger.debug("%s - Collection - Verified - %.2fs", cname, timer() - t)
         return diff == 0
 
     def series_range(self, cname, from_dt, to_dt):
