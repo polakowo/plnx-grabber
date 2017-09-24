@@ -41,21 +41,15 @@ Get information on history available on Poloniex:
 grabber.remote_info(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH])
 ```
 
-![alt text](/img/remote_info.png)
-
 Get information on pairs stored locally:
 ```python
 grabber.db_info()
 ```
 
-![alt text](/img/db_info.png)
-
 Get progress of currently stored history relative to overall available on Poloniex:
 ```python
 grabber.progress()
 ```
-
-![alt text](/img/progress.png)
 
 ### Grab one pair
 
@@ -117,8 +111,6 @@ from_dt = datetime.datetime(2017, 9, 1, 12, 0, 0, tzinfo=pytz.utc)
 to_dt = datetime.datetime(2017, 9, 1, 18, 0, 0, tzinfo=pytz.utc)
 grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH'], from_dt=from_dt, to_dt=to_dt)
 ```
-
-![UbIlti](https://i.makeagif.com/media/9-18-2017/UbIlti.gif)
 
 * Pass 'ticker' instead of pair to perform an action on all pairs traded on Poloniex
 * Pass 'db' to perform an action on all pairs stored locally
