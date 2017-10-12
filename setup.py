@@ -2,12 +2,12 @@ from setuptools import setup
 
 setup(
     name='plnx-grabber',
-    version='1.5', # MAJOR.MINOR
+    version='1.5.1', # MAJOR.MINOR
     description='Grabber of trade history from Poloniex exchange',
     url='https://github.com/polakowo/plnx-grabber',
     author='polakowo',
     license='GPL v3',
     packages=['plnxgrabber'],
-    install_requires=['arrow', 'pandas', 'poloniex', 'pymongo'],
+    install_requires=['pandas', 'poloniex', 'pymongo', 'pytz', 'bson'],
     python_requires='>=3'
 )
