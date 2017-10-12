@@ -17,10 +17,12 @@ pip install https://github.com/polakowo/plnx-grabber/archive/master.zip
 ## Setup
 
 ```python
-from pymongo import MongoClient
-from datetime import datetime
-from plnxgrabber import plnxgrabber, mongots
 import logging
+from datetime import datetime
+import pytz
+
+from plnxgrabber import plnxgrabber, mongots
+from pymongo import MongoClient
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(funcName)s() - %(levelname)s - %(message)s',
                     datefmt='%d/%m/%Y %H:%M:%S',
