@@ -7,7 +7,7 @@ setup(
     url='https://github.com/polakowo/plnx-grabber',
     author='polakowo',
     license='GPL v3',
-    packages=['plnxgrabber', 'mongots'],
+    packages=['plnxgrabber'],
     install_requires=['arrow', 'pandas', 'poloniex', 'pymongo'],
     python_requires='>=3'
 )
