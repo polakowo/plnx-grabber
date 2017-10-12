@@ -17,7 +17,7 @@ pip install https://github.com/polakowo/plnx-grabber/archive/master.zip
 ## Setup
 
 ```python
-from plnxgrabber import plnxgrabber, mongots
+import plnxgrabber
 from pymongo import MongoClient
 import logging
 
@@ -28,7 +28,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(funcName)s() - %(levelnam
 
 client = MongoClient('localhost:27017')
 db = client['TradeHistory']
-mongo_ts = mongots.MongoTS(db)
+mongo_ts = plnxgrabber.MongoTS(db)
 grabber = plnxgrabber.Grabber(mongo_ts)
 ```
 

@@ -4,7 +4,7 @@ from datetime import datetime
 import pytz
 from pymongo import MongoClient
 
-from plnxgrabber import plnxgrabber, mongots
+import plnxgrabber
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
 
     client = MongoClient('localhost:27017')
     db = client['TradeHistory']
-    mongo_ts = mongots.MongoTS(db)
+    mongo_ts = plnxgrabber.MongoTS(db)
     grabber = plnxgrabber.Grabber(mongo_ts)
 
     try:
