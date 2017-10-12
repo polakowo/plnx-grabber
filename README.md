@@ -65,8 +65,8 @@ grabber.one('USDT_BCH')
 
 Collect the history between 1/9/2017 12:00:00 to 1/9/2017 18:00:00:
 ```python
-from_dt = datetime.datetime(2017, 9, 1, 12, 0, 0, tzinfo=pytz.utc)
-to_dt = datetime.datetime(2017, 9, 1, 18, 0, 0, tzinfo=pytz.utc)
+from_dt = datetime(2017, 9, 1, 12, 0, 0, tzinfo=pytz.utc)
+to_dt = datetime(2017, 9, 1, 18, 0, 0, tzinfo=pytz.utc)
 grabber.one('USDT_BTC', from_dt=from_dt, to_dt=to_dt)
 ```
 
@@ -108,8 +108,8 @@ To collect trade history for a row of pairs, use `Grabber.row()`
 
 For the following 4 pairs, collect the history from 1/9/2017 12:00:00 to 1/9/2017 18:00:00:
 ```python
-from_dt = datetime.datetime(2017, 9, 1, 12, 0, 0, tzinfo=pytz.utc)
-to_dt = datetime.datetime(2017, 9, 1, 18, 0, 0, tzinfo=pytz.utc)
+from_dt = datetime(2017, 9, 1, 12, 0, 0, tzinfo=pytz.utc)
+to_dt = datetime(2017, 9, 1, 18, 0, 0, tzinfo=pytz.utc)
 grabber.row(['USDT_BTC', 'USDT_ETH', 'USDT_LTC', 'USDT_BCH'], from_dt=from_dt, to_dt=to_dt)
 ```
 
