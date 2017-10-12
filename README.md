@@ -17,12 +17,9 @@ pip install https://github.com/polakowo/plnx-grabber/archive/master.zip
 ## Setup
 
 ```python
-import logging
-from datetime import datetime
-import pytz
-
 from plnxgrabber import plnxgrabber, mongots
 from pymongo import MongoClient
+import logging
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(funcName)s() - %(levelname)s - %(message)s',
                     datefmt='%d/%m/%Y %H:%M:%S',
@@ -67,6 +64,9 @@ grabber.one('USDT_BCH')
 
 Collect the history between 1/9/2017 12:00:00 to 1/9/2017 18:00:00:
 ```python
+from datetime import datetime
+import pytz
+
 from_dt = datetime(2017, 9, 1, 12, 0, 0, tzinfo=pytz.utc)
 to_dt = datetime(2017, 9, 1, 18, 0, 0, tzinfo=pytz.utc)
 grabber.one('USDT_BTC', from_dt=from_dt, to_dt=to_dt)
