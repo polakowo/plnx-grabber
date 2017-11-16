@@ -1,5 +1,3 @@
-![python](https://img.shields.io/badge/python-3-yellow.svg)![license](https://img.shields.io/badge/license-GPL%20v3-yellow.svg)
-
 # plnx-grabber
 Transfer trade history from Poloniex into a local MongoDB database
 
